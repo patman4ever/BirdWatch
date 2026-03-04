@@ -1,247 +1,107 @@
 """
-Vogelnamen vertaling Engels -> Nederlands
-Gebaseerd op BirdNET soorten die in Nederland voorkomen
+Vogelnamen vertaling via BirdNET-Pi label bestanden
+Labels worden geladen uit /app/labels/labels_XX.txt
+Elke regel bevat: Scientific_Name_Common Name
 """
 
-NL = {
-    "Eurasian Blackbird": "Merel",
-    "Short-toed Treecreeper": "Boomkruiper",
-    "Great Tit": "Koolmees",
-    "Blue Tit": "Pimpelmees",
-    "Common Chaffinch": "Vink",
-    "European Robin": "Roodborst",
-    "House Sparrow": "Huismus",
-    "Common Starling": "Spreeuw",
-    "Song Thrush": "Zanglijster",
-    "Fieldfare": "Kramsvogel",
-    "Redwing": "Koperwiek",
-    "Mistle Thrush": "Grote lijster",
-    "Common Wood Pigeon": "Houtduif",
-    "Stock Dove": "Holenduif",
-    "Eurasian Collared Dove": "Turkse tortel",
-    "European Turtle Dove": "Zomertortel",
-    "Common Swift": "Gierzwaluw",
-    "Barn Swallow": "Boerenzwaluw",
-    "Common House Martin": "Huiszwaluw",
-    "Sand Martin": "Oeverzwaluw",
-    "Eurasian Wren": "Winterkoning",
-    "Dunnock": "Heggenmus",
-    "European Stonechat": "Roodborsttapuit",
-    "Northern Wheatear": "Tapuit",
-    "Common Redstart": "Gekraagde roodstaart",
-    "Black Redstart": "Zwarte roodstaart",
-    "Common Nightingale": "Nachtegaal",
-    "Eurasian Reed Warbler": "Kleine karekiet",
-    "Great Reed Warbler": "Grote karekiet",
-    "Sedge Warbler": "Rietzanger",
-    "Common Whitethroat": "Grasmus",
-    "Lesser Whitethroat": "Braamsluiper",
-    "Garden Warbler": "Tuinfluiter",
-    "Blackcap": "Zwartkop",
-    "Wood Warbler": "Fluiter",
-    "Common Chiffchaff": "Tjiftjaf",
-    "Willow Warbler": "Fitis",
-    "Goldcrest": "Goudhaan",
-    "Firecrest": "Vuurgoudhaan",
-    "Long-tailed Tit": "Staartmees",
-    "Marsh Tit": "Glanskop",
-    "Willow Tit": "Matkop",
-    "Crested Tit": "Kuifmees",
-    "Coal Tit": "Zwarte mees",
-    "Eurasian Nuthatch": "Boomklever",
-    "Eurasian Treecreeper": "Taigaboomkruiper",
-    "Common Starling": "Spreeuw",
-    "Eurasian Jay": "Gaai",
-    "Eurasian Magpie": "Ekster",
-    "Western Jackdaw": "Kauw",
-    "Rook": "Roek",
-    "Carrion Crow": "Zwarte kraai",
-    "Hooded Crow": "Bonte kraai",
-    "Common Raven": "Raaf",
-    "Eurasian Skylark": "Veldleeuwerik",
-    "Woodlark": "Boomleeuwerik",
-    "Common Reed Bunting": "Rietgors",
-    "Yellowhammer": "Geelgors",
-    "Common Linnet": "Kneu",
-    "European Goldfinch": "Putter",
-    "Eurasian Siskin": "Sijs",
-    "Common Redpoll": "Barmsijs",
-    "European Greenfinch": "Groenling",
-    "Eurasian Bullfinch": "Goudvink",
-    "Hawfinch": "Appelvink",
-    "House Finch": "Mexicaanse roodmus",
-    "Common Crossbill": "Kruisbek",
-    "Snow Bunting": "Sneeuwgors",
-    "Lapland Bunting": "IJsgors",
-    "White Wagtail": "Witte kwikstaart",
-    "Grey Wagtail": "Grote gele kwikstaart",
-    "Yellow Wagtail": "Gele kwikstaart",
-    "Meadow Pipit": "Graspieper",
-    "Tree Pipit": "Boompieper",
-    "Water Pipit": "Waterpieper",
-    "Rock Pipit": "Oeverpieper",
-    "Common Kingfisher": "IJsvogel",
-    "European Bee-eater": "Bijeneter",
-    "European Roller": "Scharrelaar",
-    "Eurasian Hoopoe": "Hop",
-    "Green Woodpecker": "Groene specht",
-    "Great Spotted Woodpecker": "Grote bonte specht",
-    "Lesser Spotted Woodpecker": "Kleine bonte specht",
-    "Black Woodpecker": "Zwarte specht",
-    "Middle Spotted Woodpecker": "Middelste bonte specht",
-    "Common Kestrel": "Torenvalk",
-    "Eurasian Hobby": "Boomvalk",
-    "Peregrine Falcon": "Slechtvalk",
-    "Merlin": "Smelleken",
-    "Eurasian Sparrowhawk": "Sperwer",
-    "Northern Goshawk": "Havik",
-    "Common Buzzard": "Buizerd",
-    "Rough-legged Buzzard": "Ruigpootbuizerd",
-    "Honey Buzzard": "Wespendief",
-    "Red Kite": "Rode wouw",
-    "Black Kite": "Zwarte wouw",
-    "White-tailed Eagle": "Zeearend",
-    "Golden Eagle": "Steenarend",
-    "Marsh Harrier": "Bruine kiekendief",
-    "Hen Harrier": "Blauwe kiekendief",
-    "Montagu's Harrier": "Grauwe kiekendief",
-    "Osprey": "Visarend",
-    "Barn Owl": "Kerkuil",
-    "Tawny Owl": "Bosuil",
-    "Little Owl": "Steenuil",
-    "Long-eared Owl": "Ransuil",
-    "Short-eared Owl": "Velduil",
-    "Common Crane": "Kraanvogel",
-    "Grey Heron": "Blauwe reiger",
-    "Great White Egret": "Grote zilverreiger",
-    "Little Egret": "Kleine zilverreiger",
-    "Purple Heron": "Purperreiger",
-    "Eurasian Bittern": "Roerdomp",
-    "White Stork": "Ooievaar",
-    "Mute Swan": "Knobbelzwaan",
-    "Whooper Swan": "Wilde zwaan",
-    "Bewick's Swan": "Kleine zwaan",
-    "Greylag Goose": "Grauwe gans",
-    "White-fronted Goose": "Kolgans",
-    "Pink-footed Goose": "Kleine rietgans",
-    "Barnacle Goose": "Brandgans",
-    "Brent Goose": "Rotgans",
-    "Canada Goose": "Canadese gans",
-    "Egyptian Goose": "Nijlgans",
-    "Common Shelduck": "Bergeend",
-    "Mallard": "Wilde eend",
-    "Eurasian Teal": "Wintertaling",
-    "Garganey": "Zomertaling",
-    "Northern Pintail": "Pijlstaart",
-    "Northern Shoveler": "Slobeend",
-    "Gadwall": "Krakeend",
-    "Eurasian Wigeon": "Smient",
-    "Common Pochard": "Tafeleend",
-    "Tufted Duck": "Kuifeend",
-    "Common Goldeneye": "Brilduiker",
-    "Eurasian Oystercatcher": "Scholekster",
-    "Northern Lapwing": "Kievit",
-    "European Golden Plover": "Goudplevier",
-    "Grey Plover": "Zilverplevier",
-    "Common Ringed Plover": "Bontbekplevier",
-    "Little Ringed Plover": "Kleine plevier",
-    "Eurasian Curlew": "Wulp",
-    "Whimbrel": "Regenwulp",
-    "Black-tailed Godwit": "Grutto",
-    "Bar-tailed Godwit": "Rosse grutto",
-    "Ruddy Turnstone": "Steenloper",
-    "Common Redshank": "Tureluur",
-    "Common Greenshank": "Groenpootruiter",
-    "Green Sandpiper": "Witgat",
-    "Wood Sandpiper": "Bosruiter",
-    "Common Sandpiper": "Oeverloper",
-    "Dunlin": "Bonte strandloper",
-    "Common Snipe": "Watersnip",
-    "Eurasian Woodcock": "Houtsnip",
-    "Black-headed Gull": "Kokmeeuw",
-    "Common Gull": "Stormmeeuw",
-    "Herring Gull": "Zilvermeeuw",
-    "Lesser Black-backed Gull": "Kleine mantelmeeuw",
-    "Great Black-backed Gull": "Grote mantelmeeuw",
-    "Common Tern": "Visdief",
-    "Arctic Tern": "Noordse stern",
-    "Little Tern": "Dwergstern",
-    "Sandwich Tern": "Grote stern",
-    "Great Crested Grebe": "Fuut",
-    "Little Grebe": "Dodaars",
-    "Eurasian Coot": "Meerkoet",
-    "Common Moorhen": "Waterhoen",
-    "Water Rail": "Waterral",
-    "Spotted Crake": "Porseleinhoen",
-    "Corncrake": "Kwartelkoning",
-    "Common Quail": "Kwartel",
-    "Common Pheasant": "Fazant",
-    "Grey Partridge": "Patrijs",
-    "Black Grouse": "Korhoen",
-    "Western Capercaillie": "Auerhoen",
-    "Hazel Grouse": "Hazelhoen",
-}
+import os
+import logging
 
-DE = {
-    "Eurasian Blackbird": "Amsel",
-    "Great Tit": "Kohlmeise",
-    "Blue Tit": "Blaumeise",
-    "Common Chaffinch": "Buchfink",
-    "European Robin": "Rotkehlchen",
-    "House Sparrow": "Haussperling",
-    "Common Starling": "Star",
-    "Common Wood Pigeon": "Ringeltaube",
-    "Eurasian Wren": "Zaunkönig",
-    "Eurasian Jay": "Eichelhäher",
-    "Eurasian Magpie": "Elster",
-    "Western Jackdaw": "Dohle",
-    "Carrion Crow": "Aaskrähe",
-    "Common Buzzard": "Mäusebussard",
-    "Common Kingfisher": "Eisvogel",
-    "Great Spotted Woodpecker": "Buntspecht",
-    "Short-toed Treecreeper": "Gartenbaumläufer",
-    "Blackcap": "Mönchsgrasmücke",
-    "Common Chiffchaff": "Zilpzalp",
-    "Willow Warbler": "Fitis",
-    "Goldcrest": "Wintergoldhähnchen",
-    "Long-tailed Tit": "Schwanzmeise",
-    "Eurasian Nuthatch": "Kleiber",
-    "White Wagtail": "Bachstelze",
-    "Grey Heron": "Graureiher",
-    "Mallard": "Stockente",
-    "Northern Lapwing": "Kiebitz",
-}
+log = logging.getLogger("birdwatch.translations")
 
-FR = {
-    "Eurasian Blackbird": "Merle noir",
-    "Great Tit": "Mésange charbonnière",
-    "Blue Tit": "Mésange bleue",
-    "Common Chaffinch": "Pinson des arbres",
-    "European Robin": "Rouge-gorge familier",
-    "House Sparrow": "Moineau domestique",
-    "Common Starling": "Étourneau sansonnet",
-    "Common Wood Pigeon": "Pigeon ramier",
-    "Eurasian Wren": "Troglodyte mignon",
-    "Eurasian Jay": "Geai des chênes",
-    "Eurasian Magpie": "Pie bavarde",
-    "Common Buzzard": "Buse variable",
-    "Common Kingfisher": "Martin-pêcheur d'Europe",
-    "Blackcap": "Fauvette à tête noire",
-    "Common Chiffchaff": "Pouillot véloce",
-    "Grey Heron": "Héron cendré",
-    "Mallard": "Canard colvert",
-}
+_cache = {}
+_en_index = {}  # English name -> index
+_labels_dir = os.environ.get("LABELS_DIR", "/app/labels")
 
-TRANSLATIONS = {
-    "nl": NL,
-    "de": DE,
-    "fr": FR,
-    "en": {},  # English = original names
-}
+
+def _load_english_index():
+    """Load English labels to build index mapping name -> line number"""
+    global _en_index
+    if _en_index:
+        return
+    en_file = os.path.join(_labels_dir, "labels_en.txt")
+    if not os.path.exists(en_file):
+        # Try birdnetlib's own labels
+        try:
+            import birdnetlib
+            base = os.path.dirname(birdnetlib.__file__)
+            for root, dirs, files in os.walk(base):
+                for f in files:
+                    if f == "labels_en.txt" or f == "labels.txt":
+                        en_file = os.path.join(root, f)
+                        break
+        except Exception:
+            pass
+
+    if not os.path.exists(en_file):
+        log.warning(f"English labels not found at {en_file}")
+        return
+
+    with open(en_file, "r", encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            line = line.strip()
+            if "_" in line:
+                # Format: "Scientific_Name_Common Name" -> extract common name
+                parts = line.split("_", 1)
+                if len(parts) == 2:
+                    common = parts[1].strip()
+                    _en_index[common] = i
+            else:
+                _en_index[line] = i
+
+    log.info(f"Loaded {len(_en_index)} English bird names")
+
+
+def _load_locale(locale: str) -> dict:
+    """Load translation dict for a locale"""
+    if locale in _cache:
+        return _cache[locale]
+
+    _load_english_index()
+    if not _en_index:
+        _cache[locale] = {}
+        return {}
+
+    locale_file = os.path.join(_labels_dir, f"labels_{locale}.txt")
+    if not os.path.exists(locale_file):
+        log.warning(f"Labels file not found: {locale_file}")
+        _cache[locale] = {}
+        return {}
+
+    translations = {}
+    with open(locale_file, "r", encoding="utf-8") as f:
+        locale_lines = [line.strip() for line in f]
+
+    # Build reverse index: line number -> locale name
+    en_lines = sorted(_en_index.items(), key=lambda x: x[1])
+    for english_name, idx in en_lines:
+        if idx < len(locale_lines):
+            locale_name = locale_lines[idx]
+            if "_" in locale_name:
+                parts = locale_name.split("_", 1)
+                locale_name = parts[1].strip() if len(parts) == 2 else locale_name
+            if locale_name and locale_name != english_name:
+                translations[english_name] = locale_name
+
+    log.info(f"Loaded {len(translations)} translations for locale '{locale}'")
+    _cache[locale] = translations
+    return translations
 
 
 def translate(common_name: str, locale: str) -> str:
-    """Translate English bird name to target locale. Returns original if not found."""
-    if locale == "en" or locale not in TRANSLATIONS:
+    """Translate English bird name to target locale."""
+    if not locale or locale == "en":
         return common_name
-    return TRANSLATIONS[locale].get(common_name, common_name)
+    translations = _load_locale(locale)
+    return translations.get(common_name, common_name)
+
+
+def available_locales() -> list:
+    """Return list of available locale codes based on label files present"""
+    locales = ["en"]
+    if os.path.exists(_labels_dir):
+        for f in os.listdir(_labels_dir):
+            if f.startswith("labels_") and f.endswith(".txt") and f != "labels_en.txt":
+                code = f[7:-4]  # strip "labels_" and ".txt"
+                locales.append(code)
+    return sorted(locales)

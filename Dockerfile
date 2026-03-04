@@ -8,24 +8,28 @@ RUN apt-get update && apt-get install -y \
     alsa-utils \
     gcc \
     curl \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
-
-# Voeg audio groep toe
-RUN groupadd -g 29 audio || true
-RUN usermod -aG audio root
 
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Download BirdNET-Pi vertalingen (alle talen)
+RUN curl -sL "https://github.com/Nachtzuster/BirdNET-Pi/archive/refs/heads/main.zip" -o /tmp/birdnetpi.zip && \
+    unzip -q /tmp/birdnetpi.zip "BirdNET-Pi-main/model/labels_nm/*" -d /tmp/ 2>/dev/null || true && \
+    mkdir -p /app/labels && \
+    cp /tmp/BirdNET-Pi-main/model/labels_nm/* /app/labels/ 2>/dev/null || true && \
+    rm -rf /tmp/birdnetpi.zip /tmp/BirdNET-Pi-main
+
 COPY . .
 
 RUN mkdir -p recordings logs data
 
 EXPOSE 5000
-
 ENV PYTHONUNBUFFERED=1
 ENV PORT=5000
+ENV LABELS_DIR=/app/labels
 
 CMD ["python", "app.py"]
