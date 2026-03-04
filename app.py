@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 BirdWatch - Real-time Bird Sound Detection Dashboard
-Uses BirdNET-Analyzer to identify bird species from USB microphone input
 """
 
 import os
@@ -17,7 +16,7 @@ import recorder
 import analyzer
 import disk_manager
 
-# ── Logging ──────────────────────────────────────────────────────────────────
+# ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -28,14 +27,11 @@ logging.basicConfig(
 )
 log = logging.getLogger("birdwatch")
 
-# ── Flask App ─────────────────────────────────────────────────────────────────
+# ── Flask App ──────────────────────────────────────────────────────────────────
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "birdwatch-secret-2024")
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
-# ── Global state ──────────────────────────────────────────────────────────────
-recorder_thread = None
-analyzer_thread = None
 running = False
 
 
@@ -70,12 +66,9 @@ def api_detections():
     date_from = request.args.get("date_from", None)
     date_to = request.args.get("date_to", None)
     min_confidence = float(request.args.get("min_confidence", 0.0))
-
-    rows = db.get_detections(
-        limit=limit, offset=offset,
-        species=species, date_from=date_from,
-        date_to=date_to, min_confidence=min_confidence
-    )
+    rows = db.get_detections(limit=limit, offset=offset, species=species,
+                             date_from=date_from, date_to=date_to,
+                             min_confidence=min_confidence)
     total = db.count_detections(species=species, date_from=date_from,
                                 date_to=date_to, min_confidence=min_confidence)
     return jsonify({"detections": rows, "total": total})
@@ -83,8 +76,7 @@ def api_detections():
 
 @app.route("/api/detections/latest")
 def api_latest():
-    rows = db.get_detections(limit=10, offset=0)
-    return jsonify(rows)
+    return jsonify(db.get_detections(limit=10, offset=0))
 
 
 @app.route("/api/species/top")
@@ -136,7 +128,6 @@ def api_settings_get():
 def api_settings_post():
     data = request.json
     db.save_settings(data)
-    # Apply settings to running components
     _apply_settings(data)
     return jsonify({"success": True})
 
@@ -167,14 +158,13 @@ def api_logs():
     lines = int(request.args.get("lines", 100))
     try:
         with open("logs/birdwatch.log", "r") as f:
-            all_lines = f.readlines()
-            return jsonify({"logs": all_lines[-lines:]})
+            return jsonify({"logs": f.readlines()[-lines:]})
     except FileNotFoundError:
         return jsonify({"logs": []})
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SocketIO Events
+# SocketIO
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @socketio.on("connect")
@@ -189,18 +179,16 @@ def on_disconnect():
 
 
 def broadcast_detection(detection: dict):
-    """Called by analyzer when a new bird is detected"""
     socketio.emit("detection", detection)
     log.info(f"🐦 {detection.get('common_name')} ({detection.get('confidence', 0):.1%})")
 
 
 def broadcast_status(status: dict):
-    """Broadcast system status updates"""
     socketio.emit("status_update", status)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Internal helpers
+# Helpers
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _start_time = datetime.now()
@@ -219,11 +207,15 @@ def _start_services():
     recordings_path = settings.get("recordings_path", "recordings")
     os.makedirs(recordings_path, exist_ok=True)
 
+    mic_index = settings.get("mic_device_index", None)
+    if isinstance(mic_index, str):
+        mic_index = int(mic_index) if mic_index.strip().isdigit() else None
+
     recorder.start(
         recordings_path=recordings_path,
-        device_index=settings.get("mic_device_index", None),
+        device_index=mic_index,
         segment_seconds=int(settings.get("segment_seconds", 15)),
-        sample_rate=int(settings.get("sample_rate", 48000)),
+        sample_rate=int(settings.get("sample_rate", 44100)),
     )
 
     analyzer.start(
@@ -232,10 +224,10 @@ def _start_services():
         lon=float(settings.get("longitude", 5.0)),
         min_confidence=float(settings.get("min_confidence", 0.25)),
         sensitivity=float(settings.get("sensitivity", 1.0)),
+        locale=settings.get("locale", "nl"),
         on_detection=broadcast_detection,
     )
 
-    # Disk manager watchdog
     disk_manager.start(
         recordings_path=recordings_path,
         max_disk_pct=float(settings.get("max_disk_pct", 95.0)),
@@ -257,13 +249,13 @@ def _stop_services():
 
 
 def _apply_settings(data: dict):
-    """Hot-reload certain settings"""
     if running:
         analyzer.update_settings(
             lat=float(data.get("latitude", 52.0)),
             lon=float(data.get("longitude", 5.0)),
             min_confidence=float(data.get("min_confidence", 0.25)),
             sensitivity=float(data.get("sensitivity", 1.0)),
+            locale=data.get("locale", "nl"),
         )
         disk_manager.update_max_pct(float(data.get("max_disk_pct", 95.0)))
 
@@ -273,9 +265,10 @@ def _apply_settings(data: dict):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
+    os.makedirs("logs", exist_ok=True)
+    os.makedirs("data", exist_ok=True)
     db.init_db()
 
-    # Auto-start if configured
     settings = db.get_settings()
     if settings.get("auto_start", True):
         log.info("Auto-starting recording services...")

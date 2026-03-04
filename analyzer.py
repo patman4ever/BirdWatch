@@ -1,6 +1,6 @@
 """
 BirdNET Analyzer Worker - Docker/Coolify versie
-Gebruikt birdnetlib op moderne CPU (i3+) met TensorFlow/ONNX ondersteuning
+Ondersteunt meerdere talen voor vogelnamen
 """
 
 import os
@@ -20,7 +20,7 @@ _running = False
 _settings = {
     "lat": 52.0, "lon": 5.0,
     "min_confidence": 0.25, "sensitivity": 1.0,
-    "locale": "nl",
+    "locale": "nl"
 }
 _settings_lock = threading.Lock()
 _on_detection = None
@@ -38,17 +38,19 @@ def start(recordings_path="recordings", lat=52.0, lon=5.0,
     if _running:
         return
     with _settings_lock:
-        _settings.update({"lat": lat, "lon": lon,
-                   "min_confidence": min_confidence,
-                   "sensitivity": sensitivity,
-                   "locale": locale})
+        _settings.update({
+            "lat": lat, "lon": lon,
+            "min_confidence": min_confidence,
+            "sensitivity": sensitivity,
+            "locale": locale,
+        })
     _on_detection = on_detection
     _stop_event.clear()
     _thread = threading.Thread(target=_analyze_loop, args=(recordings_path,),
                                daemon=True, name="analyzer")
     _thread.start()
     _running = True
-    log.info(f"Analyzer started lat={lat} lon={lon} min_confidence={min_confidence}")
+    log.info(f"Analyzer started lat={lat} lon={lon} locale={locale}")
 
 
 def stop():
@@ -58,12 +60,19 @@ def stop():
     log.info("Analyzer stopping...")
 
 
-def update_settings(lat=None, lon=None, min_confidence=None, sensitivity=None):
+def update_settings(lat=None, lon=None, min_confidence=None, sensitivity=None, locale=None):
+    global _analyzer_instance
     with _settings_lock:
         if lat is not None: _settings["lat"] = lat
         if lon is not None: _settings["lon"] = lon
         if min_confidence is not None: _settings["min_confidence"] = min_confidence
         if sensitivity is not None: _settings["sensitivity"] = sensitivity
+        if locale is not None and locale != _settings.get("locale"):
+            _settings["locale"] = locale
+            # Reset analyzer so it reloads with new locale
+            with _analyzer_lock:
+                _analyzer_instance = None
+            log.info(f"Locale changed to {locale} — reloading model")
 
 
 def _get_analyzer():
@@ -72,10 +81,20 @@ def _get_analyzer():
         if _analyzer_instance is None:
             try:
                 from birdnetlib.analyzer import Analyzer
-                log.info("Loading BirdNET model...")
-                locale = _settings.get("locale", "nl")
-_analyzer_instance = Analyzer(locale=locale)
+                with _settings_lock:
+                    locale = _settings.get("locale", "nl")
+                log.info(f"Loading BirdNET model (locale={locale})...")
+                _analyzer_instance = Analyzer(locale=locale)
                 log.info("BirdNET model loaded successfully")
+            except TypeError:
+                # Older birdnetlib without locale param
+                try:
+                    from birdnetlib.analyzer import Analyzer
+                    _analyzer_instance = Analyzer()
+                    log.info("BirdNET model loaded (locale not supported by this version)")
+                except Exception as e:
+                    log.error(f"Failed to load BirdNET model: {e}")
+                    _analyzer_instance = "failed"
             except Exception as e:
                 log.error(f"Failed to load BirdNET model: {e}")
                 _analyzer_instance = "failed"
@@ -101,6 +120,11 @@ def _analyze_loop(recordings_path):
                 continue
 
             if not os.path.exists(filepath):
+                continue
+
+            # Re-get analyzer in case locale changed
+            analyzer = _get_analyzer()
+            if analyzer == "failed":
                 continue
 
             with _settings_lock:
