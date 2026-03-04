@@ -11,6 +11,7 @@ from typing import Callable
 
 import recorder
 import database as db
+from translations import translate
 
 log = logging.getLogger("birdwatch.analyzer")
 
@@ -171,8 +172,11 @@ def _run_birdnet(analyzer, filepath, lat, lon, min_conf):
         recording.analyze()
         results = []
         for d in recording.detections:
+            english_name = d.get("common_name", "Unknown")
+            with _settings_lock:
+                locale = _settings.get("locale", "nl")
             results.append({
-                "common_name": d.get("common_name", "Unknown"),
+                "common_name": translate(english_name, locale),
                 "scientific_name": d.get("scientific_name", ""),
                 "confidence": round(d.get("confidence", 0.0), 4),
                 "start_time": d.get("start_time", 0),
