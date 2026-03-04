@@ -1186,6 +1186,21 @@ body::before {
                 <option value="false">No</option>
               </select>
             </div>
+            <div class="form-group">
+              <label class="form-label">Taal vogelnamen</label>
+              <select class="form-input" id="s-locale">
+                <option value="nl">Nederlands</option>
+                <option value="en">English</option>
+                <option value="de">Deutsch</option>
+                <option value="fr">Français</option>
+                <option value="es">Español</option>
+                <option value="pt">Português</option>
+                <option value="pl">Polski</option>
+                <option value="sv">Svenska</option>
+                <option value="da">Dansk</option>
+                <option value="fi">Suomi</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -1580,6 +1595,12 @@ async function loadSettings() {
   document.getElementById("s-disk-label").textContent = Math.round(pct);
   document.getElementById("s-autostart").value = s.auto_start ? "true" : "false";
 
+  // Set locale
+  const locale = document.getElementById("s-locale");
+  for (let opt of locale.options) {
+    if (opt.value === (s.locale || "nl")) { opt.selected = true; break; }
+  }
+
   // Set sample rate
   const sr = document.getElementById("s-samplerate");
   for (let opt of sr.options) {
@@ -1613,6 +1634,7 @@ async function saveSettings() {
     auto_start: document.getElementById("s-autostart").value,
     sample_rate: parseInt(document.getElementById("s-samplerate").value),
     mic_device_index: document.getElementById("s-mic").value,
+    locale: document.getElementById("s-locale").value,
   };
 
   const res = await fetch("/api/settings", {
