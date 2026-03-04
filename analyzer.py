@@ -17,7 +17,11 @@ log = logging.getLogger("birdwatch.analyzer")
 _thread = None
 _stop_event = threading.Event()
 _running = False
-_settings = {"lat": 52.0, "lon": 5.0, "min_confidence": 0.25, "sensitivity": 1.0}
+_settings = {
+    "lat": 52.0, "lon": 5.0,
+    "min_confidence": 0.25, "sensitivity": 1.0,
+    "locale": "nl",
+}
 _settings_lock = threading.Lock()
 _on_detection = None
 _analyzer_instance = None
@@ -29,14 +33,15 @@ def is_running():
 
 
 def start(recordings_path="recordings", lat=52.0, lon=5.0,
-          min_confidence=0.25, sensitivity=1.0, on_detection=None):
+          min_confidence=0.25, sensitivity=1.0, on_detection=None, locale="nl"):
     global _thread, _stop_event, _running, _on_detection
     if _running:
         return
     with _settings_lock:
         _settings.update({"lat": lat, "lon": lon,
-                           "min_confidence": min_confidence,
-                           "sensitivity": sensitivity})
+                   "min_confidence": min_confidence,
+                   "sensitivity": sensitivity,
+                   "locale": locale})
     _on_detection = on_detection
     _stop_event.clear()
     _thread = threading.Thread(target=_analyze_loop, args=(recordings_path,),
@@ -68,7 +73,8 @@ def _get_analyzer():
             try:
                 from birdnetlib.analyzer import Analyzer
                 log.info("Loading BirdNET model...")
-                _analyzer_instance = Analyzer()
+                locale = _settings.get("locale", "nl")
+_analyzer_instance = Analyzer(locale=locale)
                 log.info("BirdNET model loaded successfully")
             except Exception as e:
                 log.error(f"Failed to load BirdNET model: {e}")
