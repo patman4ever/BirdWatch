@@ -1,0 +1,1722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BirdWatch — Live Bird Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   VARIABLES & RESET
+═══════════════════════════════════════════════════════════════════ */
+:root {
+  --bg:          #0d1117;
+  --bg2:         #161b22;
+  --bg3:         #1c2333;
+  --border:      #30363d;
+  --border2:     #21262d;
+  --text:        #e6edf3;
+  --text2:       #8b949e;
+  --text3:       #484f58;
+  --green:       #3fb950;
+  --green2:      #238636;
+  --green-glow:  rgba(63,185,80,0.15);
+  --amber:       #d29922;
+  --amber2:      #f0883e;
+  --blue:        #58a6ff;
+  --red:         #f85149;
+  --purple:      #bc8cff;
+  --teal:        #39d353;
+  --accent:      #56d364;
+  --font-serif:  'DM Serif Display', Georgia, serif;
+  --font-sans:   'DM Sans', system-ui, sans-serif;
+  --font-mono:   'DM Mono', 'Courier New', monospace;
+  --radius:      8px;
+  --radius2:     12px;
+  --shadow:      0 4px 24px rgba(0,0,0,0.4);
+  --shadow2:     0 1px 3px rgba(0,0,0,0.3);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  font-size: 14px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Subtle noise texture */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   LAYOUT
+═══════════════════════════════════════════════════════════════════ */
+.layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  grid-template-rows: 56px 1fr;
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Topbar ── */
+.topbar {
+  grid-column: 1 / -1;
+  background: rgba(13,17,23,0.95);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.logo-icon {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, var(--green), var(--teal));
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.logo-text {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+
+.topbar-spacer { flex: 1; }
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  font-family: var(--font-mono);
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text3);
+}
+
+.status-dot.active {
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--green); }
+  50%       { opacity: 0.6; box-shadow: 0 0 10px var(--green); }
+}
+
+.uptime-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text3);
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 56px;
+  height: calc(100vh - 56px);
+  overflow-y: auto;
+}
+
+.nav-section {
+  padding: 0 12px 8px;
+}
+
+.nav-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text3);
+  padding: 0 8px;
+  margin-bottom: 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  text-decoration: none;
+}
+
+.nav-item:hover {
+  background: var(--bg3);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.nav-item.active {
+  background: var(--green-glow);
+  color: var(--green);
+  border-color: rgba(63,185,80,0.3);
+}
+
+.nav-item .icon { font-size: 15px; width: 18px; text-align: center; }
+
+.nav-divider {
+  height: 1px;
+  background: var(--border2);
+  margin: 8px 16px;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 12px;
+}
+
+.control-btn {
+  width: 100%;
+  padding: 8px;
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.btn-start {
+  background: var(--green2);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(35,134,54,0.4);
+}
+
+.btn-start:hover { background: #2ea043; box-shadow: 0 0 18px rgba(35,134,54,0.6); }
+
+.btn-stop {
+  background: rgba(248,81,73,0.15);
+  color: var(--red);
+  border: 1px solid rgba(248,81,73,0.3);
+}
+
+.btn-stop:hover { background: rgba(248,81,73,0.25); }
+
+/* ── Main Content ── */
+.main {
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Pages ── */
+.page { display: none; }
+.page.active { display: flex; flex-direction: column; gap: 24px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   COMPONENTS
+═══════════════════════════════════════════════════════════════════ */
+
+/* Section header */
+.section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+
+.section-sub {
+  font-size: 12px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+
+/* Card */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.card-body { padding: 16px; }
+
+/* Stat grid */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.stat-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.stat-card:hover { border-color: var(--border); }
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--green), transparent);
+}
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text3);
+}
+
+.stat-value {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  color: var(--text);
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.stat-sub {
+  font-size: 11px;
+  color: var(--text3);
+}
+
+/* Detection feed */
+.detection-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.detection-item {
+  display: grid;
+  grid-template-columns: 48px 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border2);
+  transition: background 0.15s;
+  animation: slide-in 0.3s ease;
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.detection-item:hover { background: var(--bg3); }
+.detection-item:last-child { border-bottom: none; }
+
+.det-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--green-glow), rgba(88,166,255,0.1));
+  border: 1px solid rgba(63,185,80,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.det-info {}
+.det-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.det-sci {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--text3);
+}
+
+.det-time {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.confidence-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  min-width: 70px;
+}
+
+.conf-value {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.conf-track {
+  width: 64px;
+  height: 4px;
+  background: var(--bg3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.conf-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--amber), var(--green));
+  transition: width 0.5s ease;
+}
+
+.play-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text2);
+  transition: all 0.15s;
+  font-size: 12px;
+}
+
+.play-btn:hover {
+  background: var(--green-glow);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+/* Live indicator */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--red);
+  padding: 2px 7px;
+  background: rgba(248,81,73,0.1);
+  border: 1px solid rgba(248,81,73,0.3);
+  border-radius: 4px;
+}
+
+.live-dot {
+  width: 5px;
+  height: 5px;
+  background: var(--red);
+  border-radius: 50%;
+  animation: pulse-dot 1.2s infinite;
+}
+
+/* Charts */
+.chart-container {
+  position: relative;
+  height: 200px;
+}
+
+.chart-container.tall { height: 260px; }
+
+/* Species table */
+.species-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.species-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text3);
+  border-bottom: 1px solid var(--border2);
+}
+
+.species-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border2);
+  font-size: 13px;
+  color: var(--text);
+}
+
+.species-table tr:hover td { background: var(--bg3); }
+.species-table tr:last-child td { border-bottom: none; }
+
+/* Progress bar inline */
+.rank-bar {
+  height: 4px;
+  background: var(--bg3);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 3px;
+}
+
+.rank-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--green));
+  border-radius: 2px;
+}
+
+/* Filter controls */
+.filter-bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-input, .filter-select {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 7px 12px;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.filter-input:focus, .filter-select:focus {
+  border-color: var(--green);
+}
+
+.filter-input::placeholder { color: var(--text3); }
+
+/* Settings form */
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group.full { grid-column: 1 / -1; }
+
+.form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-label .hint {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text3);
+}
+
+.form-input {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+
+.form-input:focus { border-color: var(--green); }
+
+.form-slider {
+  width: 100%;
+  accent-color: var(--green);
+}
+
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.btn-primary {
+  background: var(--green2);
+  color: #fff;
+}
+
+.btn-primary:hover { background: #2ea043; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text2);
+  border: 1px solid var(--border);
+}
+
+.btn-ghost:hover { background: var(--bg3); color: var(--text); }
+
+/* Disk usage */
+.disk-bar-track {
+  height: 8px;
+  background: var(--bg3);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.disk-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--green2), var(--green));
+  transition: width 0.5s ease;
+}
+
+.disk-bar-fill.warning {
+  background: linear-gradient(90deg, var(--amber), var(--amber2));
+}
+
+.disk-bar-fill.critical {
+  background: linear-gradient(90deg, var(--red), #ff6b6b);
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+  color: var(--text3);
+  gap: 8px;
+}
+
+.empty-state .icon { font-size: 32px; margin-bottom: 4px; }
+.empty-state p { font-size: 13px; }
+
+/* Toast notifications */
+#toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 9999;
+}
+
+.toast {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  min-width: 280px;
+  max-width: 360px;
+  box-shadow: var(--shadow);
+  animation: toast-in 0.3s ease;
+  border-left: 3px solid var(--green);
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.toast-icon { font-size: 18px; flex-shrink: 0; }
+.toast-content {}
+.toast-title { font-weight: 600; color: var(--text); }
+.toast-body { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+/* Pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+  padding: 12px 0 0;
+}
+
+.page-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 10px;
+  color: var(--text2);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.page-btn:hover, .page-btn.active {
+  background: var(--green-glow);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+/* Audio player */
+#audio-player {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--shadow);
+  z-index: 200;
+  min-width: 320px;
+  display: none;
+}
+
+#audio-player.visible { display: flex; }
+
+.player-info {}
+.player-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.player-time { font-size: 11px; color: var(--text3); font-family: var(--font-mono); }
+
+/* Waveform animation */
+.waveform {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+}
+
+.waveform-bar {
+  width: 3px;
+  border-radius: 2px;
+  background: var(--green);
+  animation: wave 1s ease-in-out infinite;
+}
+
+.waveform-bar:nth-child(1) { height: 8px;  animation-delay: 0s; }
+.waveform-bar:nth-child(2) { height: 16px; animation-delay: 0.1s; }
+.waveform-bar:nth-child(3) { height: 12px; animation-delay: 0.2s; }
+.waveform-bar:nth-child(4) { height: 20px; animation-delay: 0.3s; }
+.waveform-bar:nth-child(5) { height: 10px; animation-delay: 0.15s; }
+
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.5); }
+  50%       { transform: scaleY(1.2); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 56px auto 1fr;
+  }
+  .sidebar {
+    display: none;
+    position: fixed;
+    left: 0;
+    top: 56px;
+    width: 240px;
+    height: calc(100vh - 56px);
+    z-index: 99;
+  }
+  .sidebar.open { display: flex; }
+  .settings-grid { grid-template-columns: 1fr; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ── Topbar ── -->
+  <header class="topbar">
+    <a class="logo" href="#">
+      <div class="logo-icon">🐦</div>
+      <span class="logo-text">BirdWatch</span>
+    </a>
+    <div class="topbar-spacer"></div>
+    <span class="uptime-badge" id="uptime-badge">00:00:00</span>
+    <div class="status-pill">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Stopped</span>
+    </div>
+  </header>
+
+  <!-- ── Sidebar ── -->
+  <nav class="sidebar" id="sidebar">
+    <div class="nav-section">
+      <div class="nav-label">Monitor</div>
+      <a class="nav-item active" data-page="live" onclick="showPage('live',this)">
+        <span class="icon">📡</span> Live Feed
+      </a>
+      <a class="nav-item" data-page="history" onclick="showPage('history',this)">
+        <span class="icon">🗂</span> History
+      </a>
+      <a class="nav-item" data-page="species" onclick="showPage('species',this)">
+        <span class="icon">🦜</span> Species
+      </a>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-section">
+      <div class="nav-label">Analytics</div>
+      <a class="nav-item" data-page="charts" onclick="showPage('charts',this)">
+        <span class="icon">📊</span> Charts
+      </a>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-section">
+      <div class="nav-label">System</div>
+      <a class="nav-item" data-page="settings" onclick="showPage('settings',this)">
+        <span class="icon">⚙️</span> Settings
+      </a>
+      <a class="nav-item" data-page="logs" onclick="showPage('logs',this)">
+        <span class="icon">📋</span> Logs
+      </a>
+    </div>
+    <div class="sidebar-footer">
+      <button class="control-btn btn-start" id="ctrl-btn" onclick="toggleRecording()">
+        ▶ Start Recording
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── Main ── -->
+  <main class="main">
+
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: LIVE
+    ═══════════════════════════════════════════════════════ -->
+    <div id="page-live" class="page active">
+      <!-- Stat cards -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Today</div>
+          <div class="stat-value" id="stat-today">—</div>
+          <div class="stat-sub">detections</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Species Today</div>
+          <div class="stat-value" id="stat-species-today">—</div>
+          <div class="stat-sub">unique species</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">All Time</div>
+          <div class="stat-value" id="stat-total">—</div>
+          <div class="stat-sub">total detections</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Species Found</div>
+          <div class="stat-value" id="stat-species-all">—</div>
+          <div class="stat-sub">all time</div>
+        </div>
+      </div>
+
+      <!-- Live feed + top species side by side -->
+      <div style="display:grid; grid-template-columns: 1fr 300px; gap:16px;">
+
+        <!-- Live feed -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🔴 Live Detections</span>
+            <span class="live-badge"><span class="live-dot"></span>LIVE</span>
+          </div>
+          <div class="detection-feed" id="live-feed">
+            <div class="empty-state">
+              <div class="icon">🎙</div>
+              <p>Waiting for bird sounds...</p>
+              <p style="font-size:11px;">Make sure recording is started</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top species this week -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🏆 Top Species</span>
+            <span style="font-size:11px; color:var(--text3);">7 days</span>
+          </div>
+          <div class="card-body" style="padding:0">
+            <div id="top-species-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Disk usage -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">💾 Disk Usage</span>
+          <span id="disk-pct" style="font-family:var(--font-mono);font-size:12px;color:var(--text2)">—</span>
+        </div>
+        <div class="card-body">
+          <div class="disk-bar-track">
+            <div class="disk-bar-fill" id="disk-bar" style="width:0%"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3)">
+            <span id="disk-used">—</span>
+            <span id="disk-free">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: HISTORY
+    ═══════════════════════════════════════════════════════ -->
+    <div id="page-history" class="page">
+      <div class="section-header">
+        <h2 class="section-title">Detection History</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="filter-bar">
+            <input type="text" class="filter-input" placeholder="Search species..." id="hist-search" style="width:180px">
+            <input type="date" class="filter-input" id="hist-from">
+            <input type="date" class="filter-input" id="hist-to">
+            <select class="filter-select" id="hist-conf">
+              <option value="0">All confidence</option>
+              <option value="0.5">≥ 50%</option>
+              <option value="0.7">≥ 70%</option>
+              <option value="0.9">≥ 90%</option>
+            </select>
+            <button class="btn btn-primary" onclick="loadHistory()">Filter</button>
+          </div>
+        </div>
+        <div id="history-table-container">
+          <table class="species-table" style="width:100%">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Bird</th>
+                <th>Scientific name</th>
+                <th>Confidence</th>
+                <th>Audio</th>
+              </tr>
+            </thead>
+            <tbody id="history-tbody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="history-pagination"></div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: SPECIES
+    ═══════════════════════════════════════════════════════ -->
+    <div id="page-species" class="page">
+      <div class="section-header">
+        <h2 class="section-title">Species Catalogue</h2>
+        <span class="section-sub" id="species-count">0 species</span>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="filter-bar">
+            <input type="text" class="filter-input" placeholder="Filter species..." id="species-search" oninput="filterSpeciesTable()">
+            <select class="filter-select" id="species-sort" onchange="loadTopSpecies()">
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+          </div>
+        </div>
+        <table class="species-table" style="width:100%">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Common name</th>
+              <th>Scientific name</th>
+              <th>Detections</th>
+              <th>Best conf.</th>
+              <th>Trend</th>
+            </tr>
+          </thead>
+          <tbody id="species-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: CHARTS
+    ═══════════════════════════════════════════════════════ -->
+    <div id="page-charts" class="page">
+      <div class="section-header">
+        <h2 class="section-title">Analytics</h2>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">📅 Daily Detections (30 days)</span>
+          </div>
+          <div class="card-body">
+            <div class="chart-container tall">
+              <canvas id="chart-daily"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🕐 Activity by Hour</span>
+          </div>
+          <div class="card-body">
+            <div class="chart-container tall">
+              <canvas id="chart-hourly"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🦜 Top 10 Species Distribution</span>
+        </div>
+        <div class="card-body">
+          <div class="chart-container" style="height:280px">
+            <canvas id="chart-species"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: SETTINGS
+    ═══════════════════════════════════════════════════════ -->
+    <div id="page-settings" class="page">
+      <div class="section-header">
+        <h2 class="section-title">Settings</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📍 Location & Analysis</span>
+        </div>
+        <div class="card-body">
+          <div class="settings-grid">
+            <div class="form-group">
+              <label class="form-label">Station Name</label>
+              <input type="text" class="form-input" id="s-station-name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Latitude <span class="hint">(for seasonal filtering)</span></label>
+              <input type="number" class="form-input" id="s-lat" step="0.001" min="-90" max="90">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Longitude</label>
+              <input type="number" class="form-input" id="s-lon" step="0.001" min="-180" max="180">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Min. Confidence: <span id="s-conf-label">0.25</span></label>
+              <input type="range" class="form-slider" id="s-conf" min="0.1" max="0.99" step="0.01" oninput="document.getElementById('s-conf-label').textContent=parseFloat(this.value).toFixed(2)">
+              <div class="slider-labels"><span>0.10 (sensitive)</span><span>0.99 (strict)</span></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Sensitivity: <span id="s-sens-label">1.0</span></label>
+              <input type="range" class="form-slider" id="s-sens" min="0.5" max="1.5" step="0.1" oninput="document.getElementById('s-sens-label').textContent=parseFloat(this.value).toFixed(1)">
+              <div class="slider-labels"><span>0.5 (less)</span><span>1.5 (more)</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🎙 Recording</span>
+        </div>
+        <div class="card-body">
+          <div class="settings-grid">
+            <div class="form-group">
+              <label class="form-label">Microphone Device</label>
+              <select class="form-input" id="s-mic">
+                <option value="">Auto-detect USB mic</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Sample Rate</label>
+              <select class="form-input" id="s-samplerate">
+                <option value="22050">22050 Hz</option>
+                <option value="44100">44100 Hz</option>
+                <option value="48000" selected>48000 Hz (recommended)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Segment Length (seconds)</label>
+              <input type="number" class="form-input" id="s-segment" min="5" max="60" step="5">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Recordings Directory</label>
+              <input type="text" class="form-input" id="s-recpath">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">💾 Storage</span>
+        </div>
+        <div class="card-body">
+          <div class="settings-grid">
+            <div class="form-group">
+              <label class="form-label">Max Disk Usage: <span id="s-disk-label">95</span>%</label>
+              <input type="range" class="form-slider" id="s-diskpct" min="50" max="99" step="1"
+                     oninput="document.getElementById('s-disk-label').textContent=this.value">
+              <div class="slider-labels"><span>50%</span><span>99%</span></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Auto-start on launch</label>
+              <select class="form-input" id="s-autostart">
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+        <button class="btn btn-ghost" onclick="loadSettings()">↺ Reset</button>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         PAGE: LOGS
+    ═══════════════════════════════════════════════════════ -->
+    <div id="page-logs" class="page">
+      <div class="section-header">
+        <h2 class="section-title">System Logs</h2>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📋 Recent Log Entries</span>
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="loadLogs()">↺ Refresh</button>
+        </div>
+        <div id="log-container" style="font-family:var(--font-mono);font-size:11px;padding:12px;
+             max-height:500px;overflow-y:auto;line-height:1.8;color:var(--text2);
+             white-space:pre-wrap;word-break:break-all">
+          Loading...
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- Audio player -->
+<div id="audio-player">
+  <div class="waveform">
+    <div class="waveform-bar"></div>
+    <div class="waveform-bar"></div>
+    <div class="waveform-bar"></div>
+    <div class="waveform-bar"></div>
+    <div class="waveform-bar"></div>
+  </div>
+  <div class="player-info">
+    <div class="player-name" id="player-name">—</div>
+    <div class="player-time" id="player-time">0:00</div>
+  </div>
+  <audio id="audio-el" onended="closePlayer()" ontimeupdate="updatePlayerTime()"></audio>
+  <button class="btn btn-ghost" style="padding:6px 10px" onclick="closePlayer()">✕</button>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   BirdWatch Dashboard JS
+═══════════════════════════════════════════════════════════════════ */
+
+const socket = io();
+let isRunning = false;
+let liveDetections = [];
+let charts = {};
+let histPage = 0;
+const HIST_PAGE_SIZE = 25;
+
+// ── Socket.IO ────────────────────────────────────────────────────
+socket.on("connect", () => {
+  console.log("Connected to BirdWatch server");
+});
+
+socket.on("status", (data) => {
+  setRunning(data.running);
+});
+
+socket.on("status_update", (data) => {
+  setRunning(data.running);
+});
+
+socket.on("detection", (det) => {
+  addLiveDetection(det);
+  showToast(det);
+  loadStats();
+  loadTopSpecies();
+});
+
+// ── Navigation ───────────────────────────────────────────────────
+function showPage(name, el) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  document.getElementById("page-" + name).classList.add("active");
+  if (el) el.classList.add("active");
+
+  // Lazy load page data
+  if (name === "history") loadHistory();
+  if (name === "species") loadTopSpecies();
+  if (name === "charts")  loadCharts();
+  if (name === "settings") loadSettings();
+  if (name === "logs") loadLogs();
+}
+
+// ── Status / control ─────────────────────────────────────────────
+function setRunning(running) {
+  isRunning = running;
+  const dot = document.getElementById("status-dot");
+  const text = document.getElementById("status-text");
+  const btn = document.getElementById("ctrl-btn");
+
+  if (running) {
+    dot.classList.add("active");
+    text.textContent = "Recording";
+    btn.className = "control-btn btn-stop";
+    btn.textContent = "⏹ Stop Recording";
+  } else {
+    dot.classList.remove("active");
+    text.textContent = "Stopped";
+    btn.className = "control-btn btn-start";
+    btn.textContent = "▶ Start Recording";
+  }
+}
+
+async function toggleRecording() {
+  const endpoint = isRunning ? "/api/control/stop" : "/api/control/start";
+  const res = await fetch(endpoint, { method: "POST" });
+  const data = await res.json();
+  setRunning(data.running);
+}
+
+// ── Stats ─────────────────────────────────────────────────────────
+async function loadStats() {
+  const res = await fetch("/api/stats/summary");
+  const data = await res.json();
+  document.getElementById("stat-today").textContent = data.detections_today ?? 0;
+  document.getElementById("stat-species-today").textContent = data.species_today ?? 0;
+  document.getElementById("stat-total").textContent = data.total_detections ?? 0;
+  document.getElementById("stat-species-all").textContent = data.total_species ?? 0;
+}
+
+async function pollStatus() {
+  const res = await fetch("/api/status");
+  const data = await res.json();
+  setRunning(data.running);
+  document.getElementById("uptime-badge").textContent = data.uptime || "00:00:00";
+
+  // Disk
+  if (data.disk) {
+    const d = data.disk;
+    const pct = d.used_pct || 0;
+    document.getElementById("disk-pct").textContent = pct.toFixed(1) + "%";
+    document.getElementById("disk-used").textContent = `Used: ${(d.used_gb||0).toFixed(1)} GB`;
+    document.getElementById("disk-free").textContent = `Free: ${(d.free_gb||0).toFixed(1)} GB`;
+    const bar = document.getElementById("disk-bar");
+    bar.style.width = pct + "%";
+    bar.className = "disk-bar-fill" + (pct > 90 ? " critical" : pct > 80 ? " warning" : "");
+  }
+}
+
+// ── Live Feed ─────────────────────────────────────────────────────
+function addLiveDetection(det) {
+  liveDetections.unshift(det);
+  if (liveDetections.length > 50) liveDetections.pop();
+  renderLiveFeed();
+}
+
+function renderLiveFeed() {
+  const feed = document.getElementById("live-feed");
+  if (!liveDetections.length) {
+    feed.innerHTML = `<div class="empty-state">
+      <div class="icon">🎙</div><p>Waiting for bird sounds...</p></div>`;
+    return;
+  }
+  feed.innerHTML = liveDetections.slice(0, 20).map(det => detectionRow(det)).join("");
+}
+
+function detectionRow(det) {
+  const conf = Math.round((det.confidence || 0) * 100);
+  const confColor = conf >= 70 ? "var(--green)" : conf >= 50 ? "var(--amber)" : "var(--red)";
+  const time = det.timestamp ? new Date(det.timestamp).toLocaleTimeString() : "—";
+  const hasAudio = det.audio_file || det.id;
+  return `
+    <div class="detection-item">
+      <div class="det-avatar">${getBirdEmoji(det.common_name)}</div>
+      <div class="det-info">
+        <div class="det-name">${det.common_name || "Unknown"}</div>
+        <div class="det-sci">${det.scientific_name || ""}</div>
+      </div>
+      <div class="det-time">${time}</div>
+      <div class="confidence-bar">
+        <span class="conf-value" style="color:${confColor}">${conf}%</span>
+        <div class="conf-track"><div class="conf-fill" style="width:${conf}%"></div></div>
+      </div>
+      ${hasAudio ? `<button class="play-btn" onclick="playAudio(${det.id},'${det.common_name}')">▶</button>` : ""}
+    </div>`;
+}
+
+function getBirdEmoji(name) {
+  if (!name) return "🐦";
+  const n = name.toLowerCase();
+  if (n.includes("hawk") || n.includes("falcon")) return "🦅";
+  if (n.includes("owl")) return "🦉";
+  if (n.includes("duck") || n.includes("swan")) return "🦆";
+  if (n.includes("parrot") || n.includes("cockatoo")) return "🦜";
+  if (n.includes("flamingo")) return "🦩";
+  if (n.includes("robin")) return "🐦";
+  if (n.includes("crow") || n.includes("raven") || n.includes("magpie")) return "🐦‍⬛";
+  return "🐦";
+}
+
+// ── Top species sidebar ────────────────────────────────────────────
+async function loadTopSpecies() {
+  const days = document.getElementById("species-sort")?.value || 7;
+  const res = await fetch(`/api/species/top?days=${days}&limit=10`);
+  const data = await res.json();
+  const maxCount = data[0]?.count || 1;
+
+  document.getElementById("top-species-list").innerHTML = data.map((s, i) => `
+    <div style="padding:10px 16px;border-bottom:1px solid var(--border2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+        <span style="font-size:13px;font-weight:500;color:var(--text)">${s.common_name}</span>
+        <span style="font-family:var(--font-mono);font-size:12px;color:var(--text2)">${s.count}×</span>
+      </div>
+      <div class="rank-bar">
+        <div class="rank-fill" style="width:${Math.round((s.count/maxCount)*100)}%"></div>
+      </div>
+    </div>`).join("") || `<div class="empty-state"><p>No data yet</p></div>`;
+
+  // Also populate species page
+  const tbody = document.getElementById("species-tbody");
+  if (tbody) {
+    tbody.innerHTML = data.map((s, i) => `
+      <tr>
+        <td style="color:var(--text3)">#${i+1}</td>
+        <td style="font-weight:500">${s.common_name}</td>
+        <td style="font-style:italic;color:var(--text2)">${s.scientific_name}</td>
+        <td>${s.count}</td>
+        <td style="color:var(--green);font-family:var(--font-mono)">${Math.round((s.max_confidence||0)*100)}%</td>
+        <td>
+          <div style="width:100px">
+            <div class="rank-bar"><div class="rank-fill" style="width:${Math.round((s.count/maxCount)*100)}%"></div></div>
+          </div>
+        </td>
+      </tr>`).join("") || `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">No species found</td></tr>`;
+    document.getElementById("species-count").textContent = `${data.length} species`;
+  }
+}
+
+function filterSpeciesTable() {
+  const q = document.getElementById("species-search").value.toLowerCase();
+  document.querySelectorAll("#species-tbody tr").forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? "" : "none";
+  });
+}
+
+// ── History ───────────────────────────────────────────────────────
+async function loadHistory(page=0) {
+  histPage = page;
+  const search = document.getElementById("hist-search").value;
+  const from = document.getElementById("hist-from").value;
+  const to = document.getElementById("hist-to").value;
+  const conf = document.getElementById("hist-conf").value;
+
+  const params = new URLSearchParams({
+    limit: HIST_PAGE_SIZE,
+    offset: page * HIST_PAGE_SIZE,
+    min_confidence: conf,
+  });
+  if (search) params.set("species", search);
+  if (from) params.set("date_from", from);
+  if (to) params.set("date_to", to);
+
+  const res = await fetch("/api/detections?" + params);
+  const data = await res.json();
+
+  const tbody = document.getElementById("history-tbody");
+  tbody.innerHTML = (data.detections || []).map(det => {
+    const conf = Math.round((det.confidence||0)*100);
+    const confColor = conf>=70?"var(--green)":conf>=50?"var(--amber)":"var(--red)";
+    const time = det.timestamp ? new Date(det.timestamp).toLocaleString() : "—";
+    return `<tr>
+      <td style="font-family:var(--font-mono);font-size:11px;color:var(--text3)">${time}</td>
+      <td style="font-weight:500">${det.common_name}</td>
+      <td style="font-style:italic;color:var(--text2)">${det.scientific_name}</td>
+      <td style="font-family:var(--font-mono);color:${confColor}">${conf}%</td>
+      <td>${det.audio_file ? `<button class="play-btn" onclick="playAudio(${det.id},'${det.common_name}')">▶</button>` : "—"}</td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">No detections found</td></tr>`;
+
+  // Pagination
+  const totalPages = Math.ceil((data.total||0) / HIST_PAGE_SIZE);
+  const pag = document.getElementById("history-pagination");
+  if (totalPages <= 1) { pag.innerHTML = ""; return; }
+  let pagHtml = "";
+  if (page > 0) pagHtml += `<button class="page-btn" onclick="loadHistory(${page-1})">← Prev</button>`;
+  for (let i = Math.max(0,page-2); i < Math.min(totalPages, page+3); i++) {
+    pagHtml += `<button class="page-btn ${i===page?'active':''}" onclick="loadHistory(${i})">${i+1}</button>`;
+  }
+  if (page < totalPages-1) pagHtml += `<button class="page-btn" onclick="loadHistory(${page+1})">Next →</button>`;
+  pag.innerHTML = pagHtml;
+}
+
+// ── Charts ────────────────────────────────────────────────────────
+async function loadCharts() {
+  const [daily, hourly, topSpecies] = await Promise.all([
+    fetch("/api/stats/daily?days=30").then(r=>r.json()),
+    fetch("/api/stats/hourly?days=7").then(r=>r.json()),
+    fetch("/api/species/top?days=30&limit=10").then(r=>r.json()),
+  ]);
+
+  const chartDefaults = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: "#8b949e", font: { family: "DM Sans" } } },
+      tooltip: { backgroundColor: "#1c2333", borderColor: "#30363d", borderWidth: 1,
+                 titleColor: "#e6edf3", bodyColor: "#8b949e" }
+    }
+  };
+
+  // Daily chart
+  if (charts.daily) charts.daily.destroy();
+  charts.daily = new Chart(document.getElementById("chart-daily"), {
+    type: "bar",
+    data: {
+      labels: daily.map(d => d.date),
+      datasets: [
+        { label: "Detections", data: daily.map(d=>d.total_detections),
+          backgroundColor: "rgba(63,185,80,0.3)", borderColor: "#3fb950", borderWidth: 1, borderRadius: 4 },
+        { label: "Species", data: daily.map(d=>d.unique_species),
+          backgroundColor: "rgba(88,166,255,0.3)", borderColor: "#58a6ff", borderWidth: 1, borderRadius: 4, type: "line" },
+      ]
+    },
+    options: { ...chartDefaults, scales: {
+      x: { ticks: { color: "#8b949e", maxTicksLimit: 10 }, grid: { color: "#21262d" } },
+      y: { ticks: { color: "#8b949e" }, grid: { color: "#21262d" } }
+    }}
+  });
+
+  // Hourly chart
+  const hourData = Array.from({length:24}, (_,i) => {
+    const h = hourly.find(r => r.hour === i);
+    return h ? h.count : 0;
+  });
+  if (charts.hourly) charts.hourly.destroy();
+  charts.hourly = new Chart(document.getElementById("chart-hourly"), {
+    type: "bar",
+    data: {
+      labels: Array.from({length:24}, (_,i) => `${i}:00`),
+      datasets: [{ label: "Detections", data: hourData,
+        backgroundColor: hourData.map(v => v > 0 ? "rgba(63,185,80,0.5)" : "rgba(63,185,80,0.1)"),
+        borderColor: "#3fb950", borderWidth: 1, borderRadius: 4 }]
+    },
+    options: { ...chartDefaults, scales: {
+      x: { ticks: { color: "#8b949e", maxTicksLimit: 12 }, grid: { color: "#21262d" } },
+      y: { ticks: { color: "#8b949e" }, grid: { color: "#21262d" } }
+    }}
+  });
+
+  // Species doughnut
+  if (charts.species) charts.species.destroy();
+  const palette = ["#3fb950","#58a6ff","#bc8cff","#f0883e","#d29922","#39d353","#ff6b6b","#56d364","#79c0ff","#d2a8ff"];
+  charts.species = new Chart(document.getElementById("chart-species"), {
+    type: "doughnut",
+    data: {
+      labels: topSpecies.map(s=>s.common_name),
+      datasets: [{ data: topSpecies.map(s=>s.count),
+        backgroundColor: palette, borderColor: "#0d1117", borderWidth: 2 }]
+    },
+    options: { ...chartDefaults, cutout: "60%",
+      plugins: { ...chartDefaults.plugins, legend: { position: "right",
+        labels: { color: "#8b949e", padding: 12, font: { family: "DM Sans", size: 12 } }
+      }}
+    }
+  });
+}
+
+// ── Settings ───────────────────────────────────────────────────────
+async function loadSettings() {
+  const res = await fetch("/api/settings");
+  const s = await res.json();
+
+  document.getElementById("s-station-name").value = s.station_name || "";
+  document.getElementById("s-lat").value = s.latitude || 52;
+  document.getElementById("s-lon").value = s.longitude || 5;
+  const conf = parseFloat(s.min_confidence || 0.25);
+  document.getElementById("s-conf").value = conf;
+  document.getElementById("s-conf-label").textContent = conf.toFixed(2);
+  const sens = parseFloat(s.sensitivity || 1.0);
+  document.getElementById("s-sens").value = sens;
+  document.getElementById("s-sens-label").textContent = sens.toFixed(1);
+  document.getElementById("s-segment").value = s.segment_seconds || 15;
+  document.getElementById("s-recpath").value = s.recordings_path || "recordings";
+  const pct = parseFloat(s.max_disk_pct || 95);
+  document.getElementById("s-diskpct").value = pct;
+  document.getElementById("s-disk-label").textContent = Math.round(pct);
+  document.getElementById("s-autostart").value = s.auto_start ? "true" : "false";
+
+  // Set sample rate
+  const sr = document.getElementById("s-samplerate");
+  for (let opt of sr.options) {
+    if (opt.value === String(s.sample_rate || 48000)) { opt.selected = true; break; }
+  }
+
+  // Load microphones
+  const micRes = await fetch("/api/microphones");
+  const mics = await micRes.json();
+  const micSel = document.getElementById("s-mic");
+  micSel.innerHTML = '<option value="">Auto-detect USB mic</option>';
+  mics.forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m.index;
+    opt.textContent = `[${m.index}] ${m.name}`;
+    if (s.mic_device_index !== null && String(s.mic_device_index) === String(m.index)) opt.selected = true;
+    micSel.appendChild(opt);
+  });
+}
+
+async function saveSettings() {
+  const data = {
+    station_name: document.getElementById("s-station-name").value,
+    latitude: parseFloat(document.getElementById("s-lat").value),
+    longitude: parseFloat(document.getElementById("s-lon").value),
+    min_confidence: parseFloat(document.getElementById("s-conf").value),
+    sensitivity: parseFloat(document.getElementById("s-sens").value),
+    segment_seconds: parseInt(document.getElementById("s-segment").value),
+    recordings_path: document.getElementById("s-recpath").value,
+    max_disk_pct: parseFloat(document.getElementById("s-diskpct").value),
+    auto_start: document.getElementById("s-autostart").value,
+    sample_rate: parseInt(document.getElementById("s-samplerate").value),
+    mic_device_index: document.getElementById("s-mic").value,
+  };
+
+  const res = await fetch("/api/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  const result = await res.json();
+  if (result.success) {
+    showBanner("Settings saved successfully!", "success");
+  }
+}
+
+// ── Logs ──────────────────────────────────────────────────────────
+async function loadLogs() {
+  const res = await fetch("/api/logs?lines=200");
+  const data = await res.json();
+  const container = document.getElementById("log-container");
+  const lines = data.logs || [];
+  container.innerHTML = lines.map(line => {
+    let color = "var(--text2)";
+    if (line.includes("[ERROR]")) color = "var(--red)";
+    else if (line.includes("[WARNING]")) color = "var(--amber)";
+    else if (line.includes("[INFO]")) color = "var(--text2)";
+    if (line.includes("🐦") || line.includes("detected")) color = "var(--green)";
+    return `<span style="color:${color}">${escapeHtml(line.trim())}</span>`;
+  }).join("\n") || "No log entries yet.";
+  container.scrollTop = container.scrollHeight;
+}
+
+// ── Audio ─────────────────────────────────────────────────────────
+function playAudio(id, name) {
+  const audio = document.getElementById("audio-el");
+  audio.src = `/api/audio/${id}`;
+  audio.play();
+  document.getElementById("player-name").textContent = name || "Unknown";
+  document.getElementById("audio-player").classList.add("visible");
+}
+
+function closePlayer() {
+  const audio = document.getElementById("audio-el");
+  audio.pause();
+  document.getElementById("audio-player").classList.remove("visible");
+}
+
+function updatePlayerTime() {
+  const audio = document.getElementById("audio-el");
+  const t = audio.currentTime;
+  const m = Math.floor(t / 60);
+  const s = Math.floor(t % 60).toString().padStart(2, "0");
+  document.getElementById("player-time").textContent = `${m}:${s}`;
+}
+
+// ── Toast ─────────────────────────────────────────────────────────
+function showToast(det) {
+  const container = document.getElementById("toast-container");
+  const conf = Math.round((det.confidence||0)*100);
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.innerHTML = `
+    <div class="toast-icon">${getBirdEmoji(det.common_name)}</div>
+    <div class="toast-content">
+      <div class="toast-title">${det.common_name}</div>
+      <div class="toast-body">${det.scientific_name} · ${conf}% confidence</div>
+    </div>`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+}
+
+function showBanner(msg, type="success") {
+  const container = document.getElementById("toast-container");
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.style.borderLeftColor = type === "success" ? "var(--green)" : "var(--amber)";
+  toast.innerHTML = `
+    <div class="toast-icon">${type === "success" ? "✅" : "⚠️"}</div>
+    <div class="toast-content"><div class="toast-title">${msg}</div></div>`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+// ── Utils ──────────────────────────────────────────────────────────
+function escapeHtml(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+async function init() {
+  await loadStats();
+  await pollStatus();
+
+  // Load recent detections for live feed
+  const res = await fetch("/api/detections/latest");
+  const data = await res.json();
+  liveDetections = data;
+  renderLiveFeed();
+  loadTopSpecies();
+
+  // Polling
+  setInterval(pollStatus, 10000);
+  setInterval(loadStats, 30000);
+}
+
+init();
+</script>
+</body>
+</html>
