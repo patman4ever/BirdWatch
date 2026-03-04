@@ -9,9 +9,8 @@ services:
       - recordings:/app/recordings
       - logs:/app/logs
       - birdwatch_db:/app/data
-      - /dev/snd:/dev/snd
     devices:
-      - /dev/snd:/dev/snd
+      - '/dev/snd:/dev/snd'
     group_add:
       - audio
     privileged: true
