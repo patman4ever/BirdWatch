@@ -178,6 +178,93 @@ def api_audio(detection_id):
     return send_file(audio_path, mimetype="audio/wav")
 
 
+@app.route("/api/audio/live-stream")
+def api_audio_live_stream():
+    """Stream live microphone audio als WAV via arecord."""
+    err = require_auth()
+    if err: return err
+
+    settings = db.get_settings()
+    sample_rate = int(settings.get("sample_rate", 44100))
+    mic_index = settings.get("mic_device_index", "")
+
+    # Bepaal ALSA device string
+    if mic_index and str(mic_index).strip().isdigit():
+        card = int(mic_index)
+        hw_device = f"hw:{card},0"
+    else:
+        hw_device = "default"
+
+    import subprocess
+    import struct
+
+    def wav_header(sample_rate=44100, channels=1, bits=16):
+        """Genereer een WAV-header voor een oneindige stream (grootte 0xFFFFFFFF)."""
+        num_channels = channels
+        bits_per_sample = bits
+        byte_rate = sample_rate * num_channels * bits_per_sample // 8
+        block_align = num_channels * bits_per_sample // 8
+        header = struct.pack(
+            "<4sI4s4sIHHIIHH4sI",
+            b"RIFF", 0xFFFFFFFF,          # ChunkSize (streaming)
+            b"WAVE",
+            b"fmt ", 16,                   # Subchunk1Size
+            1,                             # AudioFormat PCM
+            num_channels,
+            sample_rate,
+            byte_rate,
+            block_align,
+            bits_per_sample,
+            b"data", 0xFFFFFFFF,          # Subchunk2Size (streaming)
+        )
+        return header
+
+    def generate():
+        yield wav_header(sample_rate=sample_rate)
+
+        cmd = [
+            "arecord",
+            "-D", hw_device,
+            "-f", "S16_LE",
+            "-r", str(sample_rate),
+            "-c", "1",
+            "-t", "raw",       # raw PCM, geen WAV-header van arecord zelf
+            "--buffer-size=4096",
+        ]
+        log.info(f"Live audio stream gestart: {' '.join(cmd)}")
+        proc = None
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+            while True:
+                chunk = proc.stdout.read(4096)
+                if not chunk:
+                    break
+                yield chunk
+        except GeneratorExit:
+            pass
+        finally:
+            if proc:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2)
+                except Exception:
+                    proc.kill()
+            log.info("Live audio stream gestopt")
+
+    return Response(
+        generate(),
+        mimetype="audio/wav",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 @app.route("/api/settings", methods=["GET"])
 def api_settings_get():
     err = require_auth()
