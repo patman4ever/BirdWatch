@@ -16,11 +16,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download BirdNET-Pi vertalingen (alle talen)
+# Download BirdNET-Pi vertalingen (alle talen als JSON)
 RUN curl -sL "https://github.com/Nachtzuster/BirdNET-Pi/archive/refs/heads/main.zip" -o /tmp/birdnetpi.zip && \
-    unzip -q /tmp/birdnetpi.zip "BirdNET-Pi-main/model/labels_nm/*" -d /tmp/ 2>/dev/null || true && \
+    unzip -q /tmp/birdnetpi.zip "BirdNET-Pi-main/model/l18n/*" -d /tmp/ && \
     mkdir -p /app/labels && \
-    cp /tmp/BirdNET-Pi-main/model/labels_nm/* /app/labels/ 2>/dev/null || true && \
+    cp /tmp/BirdNET-Pi-main/model/l18n/*.json /app/labels/ && \
     rm -rf /tmp/birdnetpi.zip /tmp/BirdNET-Pi-main
 
 COPY . .

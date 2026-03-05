@@ -173,11 +173,12 @@ def _run_birdnet(analyzer, filepath, lat, lon, min_conf):
         results = []
         for d in recording.detections:
             english_name = d.get("common_name", "Unknown")
+            scientific = d.get("scientific_name", "")
             with _settings_lock:
                 locale = _settings.get("locale", "nl")
             results.append({
-                "common_name": translate(english_name, locale),
-                "scientific_name": d.get("scientific_name", ""),
+                "common_name": translate(english_name, locale, scientific),
+                "scientific_name": scientific,
                 "confidence": round(d.get("confidence", 0.0), 4),
                 "start_time": d.get("start_time", 0),
                 "end_time": d.get("end_time", 0),
