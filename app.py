@@ -153,6 +153,47 @@ def api_microphones():
     return jsonify(recorder.list_microphones())
 
 
+@app.route("/api/bird-image")
+def api_bird_image():
+    """Fetch bird image URL from Wikipedia by scientific name"""
+    scientific = request.args.get("scientific", "")
+    common = request.args.get("common", "")
+    if not scientific and not common:
+        return jsonify({"url": None})
+    url = _get_wikipedia_image(scientific, common)
+    return jsonify({"url": url})
+
+
+_image_cache = {}
+
+def _get_wikipedia_image(scientific: str, common: str) -> str:
+    key = scientific or common
+    if key in _image_cache:
+        return _image_cache[key]
+
+    import urllib.request, urllib.parse, json as _json
+
+    # Try scientific name first, then common name
+    for query in [scientific, common]:
+        if not query:
+            continue
+        try:
+            q = urllib.parse.quote(query)
+            url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{q}"
+            req = urllib.request.Request(url, headers={"User-Agent": "BirdWatch/1.0"})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                data = _json.loads(r.read())
+                img = data.get("thumbnail", {}).get("source")
+                if img:
+                    _image_cache[key] = img
+                    return img
+        except Exception:
+            continue
+
+    _image_cache[key] = None
+    return None
+
+
 @app.route("/api/logs")
 def api_logs():
     lines = int(request.args.get("lines", 100))
