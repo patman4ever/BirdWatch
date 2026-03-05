@@ -2441,7 +2441,6 @@ async function loadHeatmap() {
   }
 
   // Bij periode "vandaag": toon alleen uren t/m het huidige uur
-  const days = document.getElementById("heatmap-days")?.value || 7;
   const maxHour = (parseInt(days) === 1) ? new Date().getHours() : 23;
 
   // Bouw één <table>
