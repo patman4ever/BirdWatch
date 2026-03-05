@@ -248,7 +248,7 @@ def api_audio_live_stream():
     )
 
 
-@app.route("/api/settings", methods=["GET"])@app.route("/api/settings", methods=["GET"])
+@app.route("/api/settings", methods=["GET"])
 def api_settings_get():
     err = require_auth()
     if err: return err
