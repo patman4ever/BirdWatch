@@ -2440,11 +2440,15 @@ async function loadHeatmap() {
     return { bg: `rgb(${r},${g},${b})`, text: textColor };
   }
 
+  // Bij periode "vandaag": toon alleen uren t/m het huidige uur
+  const days = document.getElementById("heatmap-days")?.value || 7;
+  const maxHour = (parseInt(days) === 1) ? new Date().getHours() : 23;
+
   // Bouw één <table>
   // Header
   let thead = `<thead><tr>
     <th class="heatmap-th-species"></th>`;
-  for (let h = 0; h < 24; h++) {
+  for (let h = 0; h <= maxHour; h++) {
     thead += `<th class="heatmap-th-hour">${String(h).padStart(2,'0')}</th>`;
   }
   thead += `</tr></thead>`;
@@ -2456,7 +2460,7 @@ async function loadHeatmap() {
       <td class="heatmap-td-species" title="${s.name}">
         ${s.name}<span class="heatmap-total">${s.total}</span>
       </td>`;
-    for (let h = 0; h < 24; h++) {
+    for (let h = 0; h <= maxHour; h++) {
       const count = data.data[s.name]?.[String(h)] || 0;
       const { bg, text } = cellColor(count);
       const hasData = count > 0 ? ' has-data' : '';
