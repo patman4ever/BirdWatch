@@ -1405,6 +1405,21 @@ body.authenticated .auth-only { display: flex !important; }
               <label class="form-label">Recordings Directory</label>
               <input type="text" class="form-input" id="s-recpath">
             </div>
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">Live Audio</label>
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <button class="btn btn-ghost" id="live-audio-btn" onclick="toggleLiveAudio()"
+                  style="display:flex;align-items:center;gap:8px;padding:7px 16px">
+                  <span id="live-audio-icon">🎤</span>
+                  <span id="live-audio-label">Live Audio beluisteren</span>
+                </button>
+                <div id="live-audio-status" style="font-size:12px;color:var(--muted)"></div>
+              </div>
+              <audio id="live-audio-player" style="display:none"></audio>
+              <div style="font-size:11px;color:var(--text3);margin-top:6px">
+                Luister rechtstreeks mee via de microfoon. Sla instellingen op voor je start.
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1702,6 +1717,9 @@ function showPage(name, el) {
   document.getElementById("page-" + name).classList.add("active");
   // Markeer actief in beide navs (desktop + mobiel)
   document.querySelectorAll(`.nav-item[data-page="${name}"]`).forEach(n => n.classList.add("active"));
+
+  // Stop live audio als je weg navigeert van settings
+  if (name !== "settings" && _liveAudioActive) stopLiveAudio();
 
   // Sluit sidebar op mobiel na navigatie
   if (window.innerWidth <= 768) closeSidebar();
@@ -2103,6 +2121,64 @@ async function saveSettings() {
     showBanner("Settings saved successfully!", "success");
   }
 }
+
+// ── Live Audio ─────────────────────────────────────────────────────
+let _liveAudioActive = false;
+
+function toggleLiveAudio() {
+  if (_liveAudioActive) {
+    stopLiveAudio();
+  } else {
+    startLiveAudio();
+  }
+}
+
+function startLiveAudio() {
+  const audio = document.getElementById("live-audio-player");
+  const btn = document.getElementById("live-audio-btn");
+  const icon = document.getElementById("live-audio-icon");
+  const label = document.getElementById("live-audio-label");
+  const status = document.getElementById("live-audio-status");
+
+  audio.src = "/api/audio/live-stream";
+  audio.load();
+  audio.play().then(() => {
+    _liveAudioActive = true;
+    icon.textContent = "⏹";
+    label.textContent = "Stop Live Audio";
+    btn.style.borderColor = "var(--green)";
+    btn.style.color = "var(--green)";
+    status.innerHTML = '<span style="color:var(--green)">● Live</span>';
+  }).catch(err => {
+    status.textContent = "Kan audio niet starten: " + err.message;
+    audio.src = "";
+  });
+
+  audio.onerror = () => {
+    stopLiveAudio();
+    status.textContent = "Verbinding verloren of microfoon niet beschikbaar";
+  };
+}
+
+function stopLiveAudio() {
+  const audio = document.getElementById("live-audio-player");
+  const icon = document.getElementById("live-audio-icon");
+  const label = document.getElementById("live-audio-label");
+  const btn = document.getElementById("live-audio-btn");
+  const status = document.getElementById("live-audio-status");
+
+  audio.pause();
+  audio.src = "";
+  _liveAudioActive = false;
+  icon.textContent = "🎤";
+  label.textContent = "Live Audio beluisteren";
+  btn.style.borderColor = "";
+  btn.style.color = "";
+  status.textContent = "";
+}
+
+// Stop live audio bij navigeren weg van settings
+const _origShowPage = showPage;
 
 // ── BirdWeather ────────────────────────────────────────────────────
 async function testBirdWeather() {
