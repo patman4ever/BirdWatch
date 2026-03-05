@@ -622,6 +622,33 @@ body::before {
   color: var(--green);
 }
 
+.delete-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: none; /* verborgen tenzij ingelogd */
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text3);
+  transition: all 0.15s;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.delete-btn:hover {
+  background: rgba(248,81,73,0.12);
+  border-color: rgba(248,81,73,0.4);
+  color: var(--red);
+}
+
+/* Toon auth-only elementen wanneer ingelogd */
+body.authenticated .delete-btn { display: flex; }
+body.authenticated .auth-only { visibility: visible; opacity: 1; pointer-events: auto; }
+body:not(.authenticated) .auth-only { visibility: hidden; opacity: 0; pointer-events: none; width: 0; overflow: hidden; padding: 0 !important; margin: 0 !important; border: none !important; }
+
 /* Live indicator */
 .live-badge {
   display: inline-flex;
@@ -1056,7 +1083,7 @@ body::before {
       </a>
     </div>
     <div class="navbar-right">
-      <button class="control-btn btn-start" id="ctrl-btn" onclick="toggleRecording()" style="width:auto;padding:5px 14px">
+      <button class="control-btn btn-start auth-only" id="ctrl-btn" onclick="toggleRecording()" style="width:auto;padding:5px 14px">
         ▶ Start
       </button>
       <button class="btn btn-ghost" id="auth-btn" onclick="handleAuthBtn()" style="font-size:12px;padding:5px 10px">
@@ -1100,7 +1127,7 @@ body::before {
       </a>
     </div>
     <div class="sidebar-footer">
-      <button class="control-btn btn-start" id="ctrl-btn-mobile" onclick="toggleRecording()">
+      <button class="control-btn btn-start auth-only" id="ctrl-btn-mobile" onclick="toggleRecording()">
         ▶ Start Recording
       </button>
       <button class="btn btn-ghost" id="auth-btn-mobile" onclick="handleAuthBtn()"
@@ -1221,6 +1248,7 @@ body::before {
                 <th>Scientific name</th>
                 <th>Confidence</th>
                 <th>Audio</th>
+                <th style="width:36px"></th>
               </tr>
             </thead>
             <tbody id="history-tbody"></tbody>
@@ -1574,9 +1602,34 @@ function updateAuthUI() {
     btn.textContent = _isAuthenticated ? "🔓 Uitloggen" : "🔒 Inloggen";
   });
   if (_isAuthenticated) {
+    document.body.classList.add("authenticated");
     protectedItems.forEach(el => el.classList.remove("nav-locked"));
   } else {
+    document.body.classList.remove("authenticated");
     protectedItems.forEach(el => el.classList.add("nav-locked"));
+  }
+}
+
+async function deleteDetection(id, name) {
+  if (!_isAuthenticated) return;
+  if (!confirm(`Verwijder detectie "${name}" uit de database?\nHet audiobestand wordt ook verwijderd.`)) return;
+  try {
+    const res = await fetch(`/api/detections/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (data.success) {
+      const row = document.getElementById(`hist-row-${id}`);
+      if (row) {
+        row.style.transition = "opacity 0.3s, transform 0.3s";
+        row.style.opacity = "0";
+        row.style.transform = "translateX(20px)";
+        setTimeout(() => row.remove(), 300);
+      }
+      showBanner(`"${name}" verwijderd`, "success");
+    } else {
+      showBanner("Verwijderen mislukt", "error");
+    }
+  } catch(e) {
+    showBanner("Verbindingsfout", "error");
   }
 }
 
@@ -1873,12 +1926,13 @@ async function loadHistory(page=0) {
     const conf = Math.round((det.confidence||0)*100);
     const confColor = conf>=70?"var(--green)":conf>=50?"var(--amber)":"var(--red)";
     const time = det.timestamp ? new Date(det.timestamp).toLocaleString() : "—";
-    return `<tr>
+    return `<tr id="hist-row-${det.id}">
       <td style="font-family:var(--font-mono);font-size:11px;color:var(--text3)">${time}</td>
       <td style="font-weight:500">${det.common_name}</td>
       <td style="font-style:italic;color:var(--text2)">${det.scientific_name}</td>
       <td style="font-family:var(--font-mono);color:${confColor}">${conf}%</td>
       <td>${det.audio_file ? `<button class="play-btn" onclick="playAudio(${det.id},'${det.common_name}')">▶</button>` : "—"}</td>
+      <td><button class="delete-btn" title="Verwijder detectie" onclick="deleteDetection(${det.id},'${det.common_name.replace(/'/g,"\\'")}')">🗑</button></td>
     </tr>`;
   }).join("") || `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">No detections found</td></tr>`;
 
