@@ -87,7 +87,7 @@ body::before {
   backdrop-filter: blur(12px);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 200;
 }
 
 .logo {
@@ -155,6 +155,48 @@ body::before {
   color: var(--text3);
 }
 
+/* ── Hamburger button ── */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 36px;
+  height: 36px;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius);
+  padding: 6px;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.hamburger:hover { background: var(--bg3); }
+.hamburger span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--text2);
+  border-radius: 2px;
+  transition: all 0.25s;
+  transform-origin: center;
+}
+.hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.hamburger.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+.hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* ── Sidebar overlay (mobile) ── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 149;
+  backdrop-filter: blur(2px);
+}
+.sidebar-overlay.active { display: block; }
+
 /* ── Sidebar ── */
 .sidebar {
   background: var(--bg2);
@@ -166,11 +208,11 @@ body::before {
   top: 56px;
   height: calc(100vh - 56px);
   overflow-y: auto;
+  z-index: 150;
+  transition: transform 0.3s ease;
 }
 
-.nav-section {
-  padding: 0 12px 8px;
-}
+.nav-section { padding: 0 12px 8px; }
 
 .nav-label {
   font-size: 10px;
@@ -261,11 +303,86 @@ body::before {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  min-width: 0;
 }
 
 /* ── Pages ── */
 .page { display: none; }
 .page.active { display: flex; flex-direction: column; gap: 24px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE — TABLET & MOBILE
+═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 56px 1fr;
+  }
+
+  .hamburger { display: flex; }
+
+  .uptime-badge { display: none; }
+
+  .sidebar {
+    position: fixed;
+    top: 56px;
+    left: 0;
+    width: 260px;
+    height: calc(100vh - 56px);
+    transform: translateX(-100%);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  .main {
+    padding: 16px;
+    gap: 16px;
+    grid-column: 1;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stat-value { font-size: 24px; }
+
+  .detection-item {
+    grid-template-columns: 40px 1fr auto;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  /* Hide confidence bar on small screens, keep % */
+  .confidence-bar {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+  .conf-track { display: none; }
+
+  .det-avatar { width: 40px; height: 40px; }
+
+  .section-title { font-size: 18px; }
+
+  .card-body { padding: 12px; }
+
+  .settings-grid { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 480px) {
+  .topbar { padding: 0 12px; gap: 10px; }
+  .logo-text { font-size: 16px; }
+  .status-pill { font-size: 11px; padding: 3px 8px; }
+  .main { padding: 12px; gap: 12px; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stat-card { padding: 12px; }
+  .stat-value { font-size: 20px; }
+}
+  color: var(--red);
+  border: 1px solid rgba(248,81,73,0.3);
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════
    COMPONENTS
@@ -880,6 +997,9 @@ body::before {
 
   <!-- ── Topbar ── -->
   <header class="topbar">
+    <button class="hamburger" id="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
     <a class="logo" href="#">
       <div class="logo-icon">🐦</div>
       <span class="logo-text">BirdWatch</span>
@@ -891,6 +1011,9 @@ body::before {
       <span id="status-text">Stopped</span>
     </div>
   </header>
+
+  <!-- Sidebar overlay voor mobiel -->
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 
   <!-- ── Sidebar ── -->
   <nav class="sidebar" id="sidebar">
@@ -1359,6 +1482,24 @@ socket.on("detection", (det) => {
 });
 
 // ── Navigation ───────────────────────────────────────────────────
+// ── Hamburger / sidebar ──────────────────────────────────────────
+function toggleSidebar() {
+  const sidebar = document.getElementById("sidebar");
+  const overlay = document.getElementById("sidebar-overlay");
+  const btn = document.getElementById("hamburger-btn");
+  const isOpen = sidebar.classList.toggle("open");
+  overlay.classList.toggle("active", isOpen);
+  btn.classList.toggle("open", isOpen);
+  document.body.style.overflow = isOpen ? "hidden" : "";
+}
+
+function closeSidebar() {
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebar-overlay").classList.remove("active");
+  document.getElementById("hamburger-btn").classList.remove("open");
+  document.body.style.overflow = "";
+}
+
 // ── Auth ──────────────────────────────────────────────────────────
 let _isAuthenticated = false;
 
@@ -1453,6 +1594,9 @@ function showPage(name, el) {
   document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
   document.getElementById("page-" + name).classList.add("active");
   if (el) el.classList.add("active");
+
+  // Sluit sidebar op mobiel na navigatie
+  if (window.innerWidth <= 768) closeSidebar();
 
   // Lazy load page data
   if (name === "history") loadHistory();
