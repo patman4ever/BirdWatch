@@ -220,6 +220,13 @@ def api_hourly_stats():
     return jsonify(db.get_hourly_stats(days=days))
 
 
+@app.route("/api/stats/heatmap")
+def api_heatmap():
+    days  = int(request.args.get("days", 1))
+    limit = int(request.args.get("limit", 30))
+    return jsonify(db.get_species_hourly_heatmap(days=days, limit=limit))
+
+
 @app.route("/api/stats/summary")
 def api_summary():
     return jsonify(db.get_summary_stats())

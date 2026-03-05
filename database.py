@@ -270,6 +270,53 @@ def get_hourly_stats(days=7) -> list:
     return [dict(r) for r in rows]
 
 
+def get_species_hourly_heatmap(days=1, limit=30) -> dict:
+    """Heatmap data: per soort het aantal waarnemingen per uur.
+    Geeft terug: { species: [{name, total}, ...], hours: [0..23],
+                   data: {species_name: {hour: count}} }
+    """
+    since = (datetime.now() - timedelta(days=days)).isoformat()
+    with get_conn() as conn:
+        # Top soorten gesorteerd op totaal
+        species_rows = conn.execute(
+            """SELECT common_name, COUNT(*) as total
+               FROM detections
+               WHERE timestamp >= ?
+               GROUP BY common_name
+               ORDER BY total DESC
+               LIMIT ?""",
+            (since, limit)
+        ).fetchall()
+
+        # Per soort per uur
+        detail_rows = conn.execute(
+            """SELECT common_name,
+                      CAST(strftime('%H', timestamp) AS INTEGER) as hour,
+                      COUNT(*) as count
+               FROM detections
+               WHERE timestamp >= ?
+                 AND common_name IN (
+                     SELECT common_name FROM detections
+                     WHERE timestamp >= ?
+                     GROUP BY common_name
+                     ORDER BY COUNT(*) DESC
+                     LIMIT ?
+                 )
+               GROUP BY common_name, hour""",
+            (since, since, limit)
+        ).fetchall()
+
+    species = [{"name": r["common_name"], "total": r["total"]} for r in species_rows]
+    data = {}
+    for r in detail_rows:
+        name = r["common_name"]
+        if name not in data:
+            data[name] = {}
+        data[name][str(r["hour"])] = r["count"]
+
+    return {"species": species, "data": data}
+
+
 def get_summary_stats() -> dict:
     with get_conn() as conn:
         total = conn.execute("SELECT COUNT(*) as n FROM detections").fetchone()["n"]
