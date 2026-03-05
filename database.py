@@ -276,16 +276,17 @@ def get_species_hourly_heatmap(days=1, limit=30) -> dict:
                    data: {species_name: {hour: count}} }
     """
     since = (datetime.now() - timedelta(days=days)).isoformat()
+    until = datetime.now().isoformat()   # nooit toekomstige uren tonen
     with get_conn() as conn:
         # Top soorten gesorteerd op totaal
         species_rows = conn.execute(
             """SELECT common_name, COUNT(*) as total
                FROM detections
-               WHERE timestamp >= ?
+               WHERE timestamp >= ? AND timestamp <= ?
                GROUP BY common_name
                ORDER BY total DESC
                LIMIT ?""",
-            (since, limit)
+            (since, until, limit)
         ).fetchall()
 
         # Per soort per uur
@@ -294,16 +295,16 @@ def get_species_hourly_heatmap(days=1, limit=30) -> dict:
                       CAST(strftime('%H', timestamp) AS INTEGER) as hour,
                       COUNT(*) as count
                FROM detections
-               WHERE timestamp >= ?
+               WHERE timestamp >= ? AND timestamp <= ?
                  AND common_name IN (
                      SELECT common_name FROM detections
-                     WHERE timestamp >= ?
+                     WHERE timestamp >= ? AND timestamp <= ?
                      GROUP BY common_name
                      ORDER BY COUNT(*) DESC
                      LIMIT ?
                  )
                GROUP BY common_name, hour""",
-            (since, since, limit)
+            (since, until, since, until, limit)
         ).fetchall()
 
     species = [{"name": r["common_name"], "total": r["total"]} for r in species_rows]
