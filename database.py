@@ -83,6 +83,8 @@ def _seed_default_settings(conn):
         "max_disk_pct": "95.0",
         "auto_start": "true",
         "station_name": "BirdWatch Station",
+        "birdweather_token": "",
+        "birdweather_enabled": "false",
     }
     for key, value in defaults.items():
         conn.execute(
@@ -274,7 +276,7 @@ def get_settings() -> dict:
         rows = conn.execute("SELECT key, value FROM settings").fetchall()
     settings = {r["key"]: r["value"] for r in rows}
     # Parse booleans and numerics
-    for k in ("auto_start",):
+    for k in ("auto_start", "birdweather_enabled"):
         if k in settings:
             settings[k] = settings[k].lower() == "true"
     for k in ("latitude", "longitude", "min_confidence", "sensitivity", "max_disk_pct"):

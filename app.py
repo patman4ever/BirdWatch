@@ -15,6 +15,7 @@ import database as db
 import recorder
 import analyzer
 import disk_manager
+import birdweather
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -194,6 +195,14 @@ def _get_wikipedia_image(scientific: str, common: str) -> str:
     return None
 
 
+@app.route("/api/birdweather/test", methods=["POST"])
+def api_birdweather_test():
+    data = request.json or {}
+    token = data.get("token", "")
+    result = birdweather.test_connection(token)
+    return jsonify(result)
+
+
 @app.route("/api/logs")
 def api_logs():
     lines = int(request.args.get("lines", 100))
@@ -222,6 +231,12 @@ def on_disconnect():
 def broadcast_detection(detection: dict):
     socketio.emit("detection", detection)
     log.info(f"🐦 {detection.get('common_name')} ({detection.get('confidence', 0):.1%})")
+    # Stuur naar BirdWeather als ingeschakeld
+    if birdweather.is_enabled():
+        audio_path = None
+        if detection.get("audio_file"):
+            audio_path = os.path.join("recordings", detection["audio_file"])
+        birdweather.submit(detection, audio_path)
 
 
 def broadcast_status(status: dict):
@@ -299,6 +314,11 @@ def _apply_settings(data: dict):
             locale=data.get("locale", "nl"),
         )
         disk_manager.update_max_pct(float(data.get("max_disk_pct", 95.0)))
+    # BirdWeather altijd bijwerken, ook als services niet draaien
+    birdweather.configure(
+        token=data.get("birdweather_token", ""),
+        enabled=str(data.get("birdweather_enabled", "false")).lower() == "true",
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -311,6 +331,13 @@ if __name__ == "__main__":
     db.init_db()
 
     settings = db.get_settings()
+
+    # BirdWeather initialiseren
+    birdweather.configure(
+        token=settings.get("birdweather_token", ""),
+        enabled=settings.get("birdweather_enabled", False),
+    )
+
     if settings.get("auto_start", True):
         log.info("Auto-starting recording services...")
         _start_services()
