@@ -2124,6 +2124,9 @@ async function saveSettings() {
 
 // ── Live Audio ─────────────────────────────────────────────────────
 let _liveAudioActive = false;
+let _liveAudioCtx = null;
+let _liveAudioTimer = null;
+let _liveAudioLastFile = null;
 
 function toggleLiveAudio() {
   if (_liveAudioActive) {
@@ -2133,52 +2136,78 @@ function toggleLiveAudio() {
   }
 }
 
-function startLiveAudio() {
-  const audio = document.getElementById("live-audio-player");
-  const btn = document.getElementById("live-audio-btn");
-  const icon = document.getElementById("live-audio-icon");
+async function startLiveAudio() {
+  const btn   = document.getElementById("live-audio-btn");
+  const icon  = document.getElementById("live-audio-icon");
   const label = document.getElementById("live-audio-label");
   const status = document.getElementById("live-audio-status");
 
-  audio.src = "/api/audio/live-stream";
-  audio.load();
-  audio.play().then(() => {
-    _liveAudioActive = true;
-    icon.textContent = "⏹";
-    label.textContent = "Stop Live Audio";
-    btn.style.borderColor = "var(--green)";
-    btn.style.color = "var(--green)";
-    status.innerHTML = '<span style="color:var(--green)">● Live</span>';
-  }).catch(err => {
-    status.textContent = "Kan audio niet starten: " + err.message;
-    audio.src = "";
-  });
+  _liveAudioActive = true;
+  icon.textContent  = "⏹";
+  label.textContent = "Stop Live Audio";
+  btn.style.borderColor = "var(--green)";
+  btn.style.color = "var(--green)";
+  status.innerHTML = '<span style="color:var(--amber)">⏳ Wachten op segment...</span>';
 
-  audio.onerror = () => {
+  try {
+    _liveAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  } catch(e) {
+    status.textContent = "Web Audio niet ondersteund in deze browser";
     stopLiveAudio();
-    status.textContent = "Verbinding verloren of microfoon niet beschikbaar";
-  };
+    return;
+  }
+
+  // Poll iedere seconde voor het nieuwste segment
+  async function pollSegment() {
+    if (!_liveAudioActive) return;
+    try {
+      // Haal het meest recente detection/segment op
+      const res = await fetch("/api/audio/latest-segment");
+      if (!res.ok) { scheduleNext(); return; }
+      const data = await res.json();
+      if (!data.file || data.file === _liveAudioLastFile) { scheduleNext(); return; }
+
+      _liveAudioLastFile = data.file;
+      status.innerHTML = '<span style="color:var(--green)">● Live</span>';
+
+      // Laad en speel het WAV-bestand af
+      const audioRes = await fetch(`/api/audio/segment-file?f=${encodeURIComponent(data.file)}`);
+      const arrayBuf = await audioRes.arrayBuffer();
+      const audioBuf = await _liveAudioCtx.decodeAudioData(arrayBuf);
+      const source = _liveAudioCtx.createBufferSource();
+      source.buffer = audioBuf;
+      source.connect(_liveAudioCtx.destination);
+      source.start(0);
+    } catch(e) {
+      // Stil falen
+    }
+    scheduleNext();
+  }
+
+  function scheduleNext() {
+    if (_liveAudioActive) _liveAudioTimer = setTimeout(pollSegment, 2000);
+  }
+
+  pollSegment();
 }
 
 function stopLiveAudio() {
-  const audio = document.getElementById("live-audio-player");
-  const icon = document.getElementById("live-audio-icon");
-  const label = document.getElementById("live-audio-label");
-  const btn = document.getElementById("live-audio-btn");
-  const status = document.getElementById("live-audio-status");
-
-  audio.pause();
-  audio.src = "";
   _liveAudioActive = false;
-  icon.textContent = "🎤";
+  if (_liveAudioTimer) { clearTimeout(_liveAudioTimer); _liveAudioTimer = null; }
+  if (_liveAudioCtx)  { _liveAudioCtx.close(); _liveAudioCtx = null; }
+  _liveAudioLastFile = null;
+
+  const icon  = document.getElementById("live-audio-icon");
+  const label = document.getElementById("live-audio-label");
+  const btn   = document.getElementById("live-audio-btn");
+  const status = document.getElementById("live-audio-status");
+  if (!icon) return;
+  icon.textContent  = "🎤";
   label.textContent = "Live Audio beluisteren";
   btn.style.borderColor = "";
   btn.style.color = "";
   status.textContent = "";
 }
-
-// Stop live audio bij navigeren weg van settings
-const _origShowPage = showPage;
 
 // ── BirdWeather ────────────────────────────────────────────────────
 async function testBirdWeather() {
