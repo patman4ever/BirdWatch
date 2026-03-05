@@ -178,94 +178,77 @@ def api_audio(detection_id):
     return send_file(audio_path, mimetype="audio/wav")
 
 
+@app.route("/api/audio/latest-segment")
+def api_latest_segment():
+    """Geeft de bestandsnaam van het meest recente opnamesegment."""
+    err = require_auth()
+    if err: return err
+    path = recorder.latest_wav_path
+    if not path:
+        return jsonify({"file": None})
+    return jsonify({"file": os.path.basename(path)})
+
+
+@app.route("/api/audio/segment-file")
+def api_segment_file():
+    """Serveer een specifiek opnamesegment op naam."""
+    err = require_auth()
+    if err: return err
+    filename = request.args.get("f", "")
+    if not filename or ".." in filename or "/" in filename:
+        return jsonify({"error": "Ongeldig bestandsnaam"}), 400
+    settings = db.get_settings()
+    recordings_path = settings.get("recordings_path", "recordings")
+    full_path = os.path.join(recordings_path, filename)
+    if not os.path.exists(full_path):
+        return jsonify({"error": "Niet gevonden"}), 404
+    return send_file(full_path, mimetype="audio/wav")
+
+
 @app.route("/api/audio/live-stream")
 def api_audio_live_stream():
-    """Stream live microphone audio als WAV via arecord."""
+    """Stream live audio door voltooide opnamesegmenten door te sturen."""
     err = require_auth()
     if err: return err
 
-    settings = db.get_settings()
-    sample_rate = int(settings.get("sample_rate", 44100))
-    mic_index = settings.get("mic_device_index", "")
-
-    # Bepaal ALSA device string
-    if mic_index and str(mic_index).strip().isdigit():
-        card = int(mic_index)
-        hw_device = f"hw:{card},0"
-    else:
-        hw_device = "default"
-
-    import subprocess
-    import struct
-
-    def wav_header(sample_rate=44100, channels=1, bits=16):
-        """Genereer een WAV-header voor een oneindige stream (grootte 0xFFFFFFFF)."""
-        num_channels = channels
-        bits_per_sample = bits
-        byte_rate = sample_rate * num_channels * bits_per_sample // 8
-        block_align = num_channels * bits_per_sample // 8
-        header = struct.pack(
-            "<4sI4s4sIHHIIHH4sI",
-            b"RIFF", 0xFFFFFFFF,          # ChunkSize (streaming)
-            b"WAVE",
-            b"fmt ", 16,                   # Subchunk1Size
-            1,                             # AudioFormat PCM
-            num_channels,
-            sample_rate,
-            byte_rate,
-            block_align,
-            bits_per_sample,
-            b"data", 0xFFFFFFFF,          # Subchunk2Size (streaming)
-        )
-        return header
-
     def generate():
-        yield wav_header(sample_rate=sample_rate)
-
-        cmd = [
-            "arecord",
-            "-D", hw_device,
-            "-f", "S16_LE",
-            "-r", str(sample_rate),
-            "-c", "1",
-            "-t", "raw",       # raw PCM, geen WAV-header van arecord zelf
-            "--buffer-size=4096",
-        ]
-        log.info(f"Live audio stream gestart: {' '.join(cmd)}")
-        proc = None
+        log.info("Live audio stream gestart (segment relay)")
+        sent_any = False
         try:
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-            )
             while True:
-                chunk = proc.stdout.read(4096)
-                if not chunk:
+                triggered = recorder.latest_wav_event.wait(timeout=30)
+                if not triggered:
+                    continue
+                path = recorder.latest_wav_path
+                if not path or not os.path.exists(path):
+                    continue
+                try:
+                    with open(path, "rb") as f:
+                        wav_data = f.read()
+                    if not sent_any:
+                        yield wav_data
+                        sent_any = True
+                    else:
+                        yield wav_data[44:]
+                except Exception as e:
+                    log.warning(f"Live stream segmentfout: {e}")
                     break
-                yield chunk
         except GeneratorExit:
             pass
         finally:
-            if proc:
-                proc.terminate()
-                try:
-                    proc.wait(timeout=2)
-                except Exception:
-                    proc.kill()
             log.info("Live audio stream gestopt")
 
     return Response(
         generate(),
         mimetype="audio/wav",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-store",
             "X-Content-Type-Options": "nosniff",
         },
     )
 
 
-@app.route("/api/settings", methods=["GET"])
+@app.route("/api/settings", methods=["GET"])@app.route("/api/settings", methods=["GET"])
 def api_settings_get():
     err = require_auth()
     if err: return err

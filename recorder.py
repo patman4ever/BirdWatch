@@ -21,6 +21,10 @@ _running = False
 # Shared queue: analyzer picks up completed .wav file paths
 recording_queue: queue.Queue = queue.Queue(maxsize=50)
 
+# Event + pad van het meest recente segment (voor live audio monitoring)
+latest_wav_event: threading.Event = threading.Event()
+latest_wav_path: str = None
+
 
 def is_running() -> bool:
     return _running
@@ -138,6 +142,10 @@ def _record_loop(
                 if frames and not _stop_event.is_set():
                     filepath = _save_segment(recordings_path, frames, sample_rate, channels, fmt)
                     if filepath:
+                        global latest_wav_path
+                        latest_wav_path = filepath
+                        latest_wav_event.set()
+                        latest_wav_event.clear()
                         try:
                             recording_queue.put_nowait(filepath)
                         except queue.Full:
