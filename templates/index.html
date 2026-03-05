@@ -368,6 +368,8 @@ body::before {
   .card-body { padding: 12px; }
 
   .settings-grid { grid-template-columns: 1fr !important; }
+  .grid-live { grid-template-columns: 1fr; }
+  .grid-two-col { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {
@@ -378,11 +380,9 @@ body::before {
   .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .stat-card { padding: 12px; }
   .stat-value { font-size: 20px; }
+  .detection-item { grid-template-columns: 36px 1fr auto; gap: 8px; padding: 8px 10px; }
+  .play-btn { display: none; }
 }
-  color: var(--red);
-  border: 1px solid rgba(248,81,73,0.3);
-}
-
 
 /* ═══════════════════════════════════════════════════════════════════
    COMPONENTS
@@ -711,6 +711,19 @@ body::before {
   gap: 16px;
 }
 
+/* Responsive grid helpers */
+.grid-live {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 16px;
+}
+
+.grid-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -939,25 +952,6 @@ body::before {
   50%       { transform: scaleY(1.2); }
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: 56px auto 1fr;
-  }
-  .sidebar {
-    display: none;
-    position: fixed;
-    left: 0;
-    top: 56px;
-    width: 240px;
-    height: calc(100vh - 56px);
-    z-index: 99;
-  }
-  .sidebar.open { display: flex; }
-  .settings-grid { grid-template-columns: 1fr; }
-}
-
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -1090,7 +1084,7 @@ body::before {
       </div>
 
       <!-- Live feed + top species side by side -->
-      <div style="display:grid; grid-template-columns: 1fr 300px; gap:16px;">
+      <div class="grid-live">
 
         <!-- Live feed -->
         <div class="card">
@@ -1221,7 +1215,7 @@ body::before {
         <h2 class="section-title">Analytics</h2>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div class="grid-two-col">
         <div class="card">
           <div class="card-header">
             <span class="card-title">📅 Daily Detections (30 days)</span>
