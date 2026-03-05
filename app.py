@@ -9,7 +9,7 @@ import time
 import threading
 import logging
 from datetime import datetime, timedelta
-from flask import Flask, render_template, jsonify, request, send_file, Response
+from flask import Flask, render_template, jsonify, request, send_file, Response, session
 from flask_socketio import SocketIO, emit
 import database as db
 import recorder
@@ -31,7 +31,45 @@ log = logging.getLogger("birdwatch")
 # ── Flask App ──────────────────────────────────────────────────────────────────
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "birdwatch-secret-2024")
+app.config["ADMIN_USER"] = os.environ.get("ADMIN_USER", "admin")
+app.config["ADMIN_PASSWORD"] = os.environ.get("ADMIN_PASSWORD", "birdwatch")
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+
+
+# ── Auth helpers ───────────────────────────────────────────────────────────────
+
+def is_logged_in() -> bool:
+    return session.get("authenticated") is True
+
+
+def require_auth():
+    """Return 401 JSON if not authenticated."""
+    if not is_logged_in():
+        return jsonify({"error": "Unauthorized", "login_required": True}), 401
+    return None
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def api_login():
+    data = request.json or {}
+    user = data.get("username", "")
+    pw = data.get("password", "")
+    if user == app.config["ADMIN_USER"] and pw == app.config["ADMIN_PASSWORD"]:
+        session["authenticated"] = True
+        session.permanent = True
+        return jsonify({"success": True})
+    return jsonify({"success": False, "error": "Onjuiste gebruikersnaam of wachtwoord"}), 401
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def api_logout():
+    session.clear()
+    return jsonify({"success": True})
+
+
+@app.route("/api/auth/status")
+def api_auth_status():
+    return jsonify({"authenticated": is_logged_in()})
 
 running = False
 
@@ -122,11 +160,15 @@ def api_audio(detection_id):
 
 @app.route("/api/settings", methods=["GET"])
 def api_settings_get():
+    err = require_auth()
+    if err: return err
     return jsonify(db.get_settings())
 
 
 @app.route("/api/settings", methods=["POST"])
 def api_settings_post():
+    err = require_auth()
+    if err: return err
     data = request.json
     db.save_settings(data)
     _apply_settings(data)
@@ -135,6 +177,8 @@ def api_settings_post():
 
 @app.route("/api/control/start", methods=["POST"])
 def api_start():
+    err = require_auth()
+    if err: return err
     global running
     if not running:
         _start_services()
@@ -143,6 +187,8 @@ def api_start():
 
 @app.route("/api/control/stop", methods=["POST"])
 def api_stop():
+    err = require_auth()
+    if err: return err
     global running
     if running:
         _stop_services()
@@ -151,6 +197,8 @@ def api_stop():
 
 @app.route("/api/microphones")
 def api_microphones():
+    err = require_auth()
+    if err: return err
     return jsonify(recorder.list_microphones())
 
 
@@ -174,7 +222,6 @@ def _get_wikipedia_image(scientific: str, common: str) -> str:
 
     import urllib.request, urllib.parse, json as _json
 
-    # Try scientific name first, then common name
     for query in [scientific, common]:
         if not query:
             continue
@@ -197,6 +244,8 @@ def _get_wikipedia_image(scientific: str, common: str) -> str:
 
 @app.route("/api/birdweather/test", methods=["POST"])
 def api_birdweather_test():
+    err = require_auth()
+    if err: return err
     data = request.json or {}
     token = data.get("token", "")
     result = birdweather.test_connection(token)
@@ -205,6 +254,8 @@ def api_birdweather_test():
 
 @app.route("/api/logs")
 def api_logs():
+    err = require_auth()
+    if err: return err
     lines = int(request.args.get("lines", 100))
     try:
         with open("logs/birdwatch.log", "r") as f:
