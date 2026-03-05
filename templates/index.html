@@ -1213,6 +1213,38 @@ body::before {
         </div>
       </div>
 
+      <!-- BirdWeather integratie -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🌍 BirdWeather Integratie</span>
+        </div>
+        <div class="card-body">
+          <div class="settings-grid">
+            <div class="form-group" style="grid-column:1/-1">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="s-birdweather-enabled" style="width:16px;height:16px;accent-color:var(--green)">
+                <span>Detecties uploaden naar BirdWeather</span>
+              </label>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px">
+                Deel je detecties met <a href="https://app.birdweather.com" target="_blank" style="color:var(--green)">app.birdweather.com</a>.
+                Registreer eerst een station op BirdWeather om een token te krijgen.
+              </div>
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">BirdWeather Token</label>
+              <div style="display:flex;gap:8px">
+                <input type="text" class="form-input" id="s-birdweather-token"
+                  placeholder="jouw-birdweather-token"
+                  style="font-family:monospace;letter-spacing:0.05em;flex:1">
+                <button class="btn btn-ghost" onclick="testBirdWeather()" id="bw-test-btn"
+                  style="white-space:nowrap;padding:0 14px">🔗 Test</button>
+              </div>
+              <div id="bw-status" style="margin-top:6px;font-size:12px;min-height:18px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div style="display:flex;gap:10px">
         <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
         <button class="btn btn-ghost" onclick="loadSettings()">↺ Reset</button>
@@ -1664,6 +1696,10 @@ async function loadSettings() {
     if (s.mic_device_index !== null && String(s.mic_device_index) === String(m.index)) opt.selected = true;
     micSel.appendChild(opt);
   });
+  // BirdWeather
+  document.getElementById("s-birdweather-token").value = s.birdweather_token || "";
+  document.getElementById("s-birdweather-enabled").checked = s.birdweather_enabled === true || s.birdweather_enabled === "true";
+  document.getElementById("bw-status").textContent = "";
 }
 
 async function saveSettings() {
@@ -1680,6 +1716,8 @@ async function saveSettings() {
     sample_rate: parseInt(document.getElementById("s-samplerate").value),
     mic_device_index: document.getElementById("s-mic").value,
     locale: document.getElementById("s-locale").value,
+    birdweather_token: document.getElementById("s-birdweather-token").value.trim(),
+    birdweather_enabled: document.getElementById("s-birdweather-enabled").checked,
   };
 
   const res = await fetch("/api/settings", {
@@ -1691,6 +1729,37 @@ async function saveSettings() {
   if (result.success) {
     showBanner("Settings saved successfully!", "success");
   }
+}
+
+// ── BirdWeather ────────────────────────────────────────────────────
+async function testBirdWeather() {
+  const token = document.getElementById("s-birdweather-token").value.trim();
+  const statusEl = document.getElementById("bw-status");
+  const btn = document.getElementById("bw-test-btn");
+  if (!token) {
+    statusEl.innerHTML = '<span style="color:var(--amber)">⚠ Voer eerst een token in</span>';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "⏳ Testen...";
+  statusEl.textContent = "";
+  try {
+    const res = await fetch("/api/birdweather/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      statusEl.innerHTML = `<span style="color:var(--green)">✓ Verbonden met station: <strong>${data.station_name}</strong></span>`;
+    } else {
+      statusEl.innerHTML = `<span style="color:var(--red)">✗ ${data.error}</span>`;
+    }
+  } catch(e) {
+    statusEl.innerHTML = `<span style="color:var(--red)">✗ Verbindingsfout</span>`;
+  }
+  btn.disabled = false;
+  btn.textContent = "🔗 Test";
 }
 
 // ── Logs ──────────────────────────────────────────────────────────
