@@ -97,6 +97,64 @@ def api_status():
     })
 
 
+@app.route("/api/detections/bulk-delete", methods=["POST"])
+def api_bulk_delete():
+    """Verwijder alle detecties vóór een opgegeven datum."""
+    err = require_auth()
+    if err: return err
+    data = request.json or {}
+    before_date = data.get("before_date", "")
+    if not before_date:
+        return jsonify({"success": False, "error": "Geen datum opgegeven"}), 400
+    # Verwijder ook de bijbehorende audiobestanden
+    settings = db.get_settings()
+    recordings_path = settings.get("recordings_path", "recordings")
+    rows = db.export_detections_csv(date_to=before_date)
+    audio_deleted = 0
+    for row in rows:
+        af = row.get("audio_file")
+        if af:
+            p = os.path.join(recordings_path, af)
+            try:
+                if os.path.exists(p):
+                    os.remove(p)
+                    audio_deleted += 1
+            except Exception as e:
+                log.warning(f"Kon audiobestand niet verwijderen: {e}")
+    count = db.bulk_delete_before(before_date)
+    log.info(f"Bulk delete: {count} detecties verwijderd vóór {before_date}, {audio_deleted} audiobestanden")
+    return jsonify({"success": True, "deleted": count, "audio_deleted": audio_deleted})
+
+
+@app.route("/api/detections/export-csv")
+def api_export_csv():
+    """Exporteer detecties tussen twee datums als CSV."""
+    err = require_auth()
+    if err: return err
+    date_from = request.args.get("from", "")
+    date_to   = request.args.get("to", "")
+    rows = db.export_detections_csv(
+        date_from=date_from or None,
+        date_to=date_to or None,
+    )
+    import io, csv
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "timestamp", "common_name", "scientific_name", "confidence", "audio_file"])
+    for r in rows:
+        writer.writerow([
+            r["id"], r["timestamp"], r["common_name"],
+            r["scientific_name"], f"{r['confidence']:.4f}", r["audio_file"] or ""
+        ])
+    csv_bytes = output.getvalue().encode("utf-8")
+    fname = f"birdwatch_{date_from or 'all'}_{date_to or 'now'}.csv"
+    return Response(
+        csv_bytes,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={fname}"}
+    )
+
+
 @app.route("/api/detections/<int:detection_id>", methods=["DELETE"])
 def api_delete_detection(detection_id):
     err = require_auth()

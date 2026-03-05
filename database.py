@@ -185,6 +185,32 @@ def delete_detection(detection_id: int) -> bool:
     return cursor.rowcount > 0
 
 
+def bulk_delete_before(date_str: str) -> int:
+    """Verwijder alle detecties vóór de opgegeven datum (YYYY-MM-DD).
+    Geeft het aantal verwijderde rijen terug."""
+    with get_conn() as conn:
+        cursor = conn.execute(
+            "DELETE FROM detections WHERE DATE(timestamp) < ?", (date_str,)
+        )
+    return cursor.rowcount
+
+
+def export_detections_csv(date_from: str = None, date_to: str = None) -> list:
+    """Haal alle detecties op tussen twee datums als lijst van dicts (voor CSV export)."""
+    query = "SELECT id, timestamp, common_name, scientific_name, confidence, audio_file FROM detections WHERE 1=1"
+    params = []
+    if date_from:
+        query += " AND DATE(timestamp) >= ?"
+        params.append(date_from)
+    if date_to:
+        query += " AND DATE(timestamp) <= ?"
+        params.append(date_to)
+    query += " ORDER BY timestamp ASC"
+    with get_conn() as conn:
+        rows = conn.execute(query, params).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_top_species(days=7, limit=10) -> list:
     since = (datetime.now() - timedelta(days=days)).isoformat()
     with get_conn() as conn:
