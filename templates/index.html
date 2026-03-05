@@ -397,8 +397,8 @@ body::before {
 .detection-item:last-child { border-bottom: none; }
 
 .det-avatar {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   border-radius: 10px;
   background: linear-gradient(135deg, var(--green-glow), rgba(88,166,255,0.1));
   border: 1px solid rgba(63,185,80,0.2);
@@ -407,6 +407,14 @@ body::before {
   justify-content: center;
   font-size: 20px;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.det-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 9px;
 }
 
 .det-info {}
@@ -1379,9 +1387,10 @@ function detectionRow(det) {
   const confColor = conf >= 70 ? "var(--green)" : conf >= 50 ? "var(--amber)" : "var(--red)";
   const time = det.timestamp ? new Date(det.timestamp).toLocaleTimeString() : "—";
   const hasAudio = det.audio_file || det.id;
-  return `
+  const avatarId = `avatar-${det.id || Math.random().toString(36).slice(2)}`;
+  const row = `
     <div class="detection-item">
-      <div class="det-avatar">${getBirdEmoji(det.common_name)}</div>
+      <div class="det-avatar" id="${avatarId}">${getBirdEmoji(det.common_name)}</div>
       <div class="det-info">
         <div class="det-name">${det.common_name || "Unknown"}</div>
         <div class="det-sci">${det.scientific_name || ""}</div>
@@ -1393,6 +1402,42 @@ function detectionRow(det) {
       </div>
       ${hasAudio ? `<button class="play-btn" onclick="playAudio(${det.id},'${det.common_name}')">▶</button>` : ""}
     </div>`;
+
+  // Load Wikipedia image async
+  if (det.scientific_name || det.common_name) {
+    setTimeout(() => loadBirdImage(avatarId, det.scientific_name, det.common_name), 50);
+  }
+  return row;
+}
+
+const _birdImageCache = {};
+
+async function loadBirdImage(avatarId, scientific, common) {
+  const key = scientific || common;
+  if (!key) return;
+
+  let url = _birdImageCache[key];
+  if (url === undefined) {
+    try {
+      const params = new URLSearchParams();
+      if (scientific) params.set("scientific", scientific);
+      if (common) params.set("common", common);
+      const res = await fetch(`/api/bird-image?${params}`);
+      const data = await res.json();
+      url = data.url || null;
+      _birdImageCache[key] = url;
+    } catch(e) {
+      _birdImageCache[key] = null;
+      return;
+    }
+  }
+
+  if (url) {
+    const el = document.getElementById(avatarId);
+    if (el) {
+      el.innerHTML = `<img src="${url}" alt="${common}" onerror="this.parentElement.innerHTML='${getBirdEmoji(common)}'">`;
+    }
+  }
 }
 
 function getBirdEmoji(name) {
