@@ -1105,8 +1105,7 @@ body.authenticated .auth-only.grid-live { display: grid !important; }
 }
 
 .heatmap-cell:hover {
-  filter: brightness(1.3);
-  color: rgba(255,255,255,0.9) !important;
+  filter: brightness(1.2);
 }
 
 .heatmap-cell.has-data { color: rgba(255,255,255,0.85); }
@@ -2429,14 +2428,16 @@ async function loadHeatmap() {
   const maxVal = Math.max(...allCounts, 1);
 
   function cellColor(count) {
-    if (!count) return "";
+    if (!count) return { bg: "", text: "transparent" };
     const intensity = Math.pow(count / maxVal, 0.5);
     const light = [188, 240, 196];
     const dark  = [35,  134,  54];
     const r = Math.round(light[0] + (dark[0] - light[0]) * intensity);
     const g = Math.round(light[1] + (dark[1] - light[1]) * intensity);
     const b = Math.round(light[2] + (dark[2] - light[2]) * intensity);
-    return `rgb(${r},${g},${b})`;
+    // Zwarte tekst op lichte achtergrond, witte tekst op donkere
+    const textColor = intensity < 0.5 ? "rgba(0,0,0,0.75)" : "rgba(255,255,255,0.9)";
+    return { bg: `rgb(${r},${g},${b})`, text: textColor };
   }
 
   // Bouw één <table>
@@ -2457,11 +2458,11 @@ async function loadHeatmap() {
       </td>`;
     for (let h = 0; h < 24; h++) {
       const count = data.data[s.name]?.[String(h)] || 0;
-      const bg = cellColor(count);
+      const { bg, text } = cellColor(count);
       const hasData = count > 0 ? ' has-data' : '';
       const title = count > 0 ? `${s.name} — ${String(h).padStart(2,'0')}:00 — ${count}×` : '';
       tbody += `<td class="heatmap-cell${hasData}"
-        style="${bg ? `background:${bg}` : ''}"
+        style="${bg ? `background:${bg};color:${text}` : ''}"
         title="${title}">${count > 0 ? count : ''}</td>`;
     }
     tbody += `</tr>`;
