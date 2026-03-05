@@ -646,8 +646,8 @@ body::before {
 
 /* Toon auth-only elementen wanneer ingelogd */
 body.authenticated .delete-btn { display: flex; }
-body.authenticated .auth-only { visibility: visible; opacity: 1; pointer-events: auto; }
-body:not(.authenticated) .auth-only { visibility: hidden; opacity: 0; pointer-events: none; width: 0; overflow: hidden; padding: 0 !important; margin: 0 !important; border: none !important; }
+.auth-only { display: none !important; }
+body.authenticated .auth-only { display: flex !important; }
 
 /* Live indicator */
 .live-badge {
@@ -1733,6 +1733,7 @@ function setRunning(running) {
 }
 
 async function toggleRecording() {
+  if (!_isAuthenticated) return;
   const endpoint = isRunning ? "/api/control/stop" : "/api/control/start";
   const res = await fetch(endpoint, { method: "POST" });
   const data = await res.json();
