@@ -64,21 +64,19 @@ body::before {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   LAYOUT
+   LAYOUT — topbar + navbar op desktop, hamburger drawer op mobiel
 ═══════════════════════════════════════════════════════════════════ */
 .layout {
-  display: grid;
-  grid-template-columns: 240px 1fr;
-  grid-template-rows: 56px 1fr;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   position: relative;
   z-index: 1;
 }
 
-/* ── Topbar ── */
+/* ── Topbar (logo + status) ── */
 .topbar {
-  grid-column: 1 / -1;
-  background: rgba(13,17,23,0.95);
+  background: rgba(13,17,23,0.97);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -88,6 +86,8 @@ body::before {
   position: sticky;
   top: 0;
   z-index: 200;
+  height: 52px;
+  flex-shrink: 0;
 }
 
 .logo {
@@ -136,6 +136,7 @@ body::before {
   height: 7px;
   border-radius: 50%;
   background: var(--text3);
+  transition: background 0.3s;
 }
 
 .status-dot.active {
@@ -155,7 +156,83 @@ body::before {
   color: var(--text3);
 }
 
-/* ── Hamburger button ── */
+/* ── Desktop navbar (onder de topbar) ── */
+.navbar {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 4px;
+  position: sticky;
+  top: 52px;
+  z-index: 190;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.nav-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0;
+}
+
+.nav-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text3);
+  padding: 0 8px 0 4px;
+  white-space: nowrap;
+}
+
+.nav-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 6px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nav-item:hover {
+  background: var(--bg3);
+  color: var(--text);
+}
+
+.nav-item.active {
+  background: var(--green-glow);
+  color: var(--green);
+  border-color: rgba(63,185,80,0.3);
+}
+
+.nav-item .icon { font-size: 14px; }
+
+.navbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+/* ── Hamburger button (mobiel only) ── */
 .hamburger {
   display: none;
   flex-direction: column;
@@ -186,7 +263,7 @@ body::before {
 .hamburger.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
 .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
-/* ── Sidebar overlay (mobile) ── */
+/* ── Sidebar overlay (mobiel) ── */
 .sidebar-overlay {
   display: none;
   position: fixed;
@@ -197,23 +274,27 @@ body::before {
 }
 .sidebar-overlay.active { display: block; }
 
-/* ── Sidebar ── */
+/* ── Sidebar drawer (mobiel) ── */
 .sidebar {
+  display: none; /* verborgen op desktop */
+  position: fixed;
+  top: 52px;
+  left: 0;
+  width: 260px;
+  height: calc(100vh - 52px);
   background: var(--bg2);
   border-right: 1px solid var(--border);
-  padding: 16px 0;
-  display: flex;
+  padding: 12px 0;
   flex-direction: column;
-  position: sticky;
-  top: 56px;
-  height: calc(100vh - 56px);
   overflow-y: auto;
   z-index: 150;
+  transform: translateX(-100%);
   transition: transform 0.3s ease;
+  box-shadow: 4px 0 24px rgba(0,0,0,0.5);
 }
+.sidebar.open { transform: translateX(0); }
 
 .nav-section { padding: 0 12px 8px; }
-
 .nav-label {
   font-size: 10px;
   font-weight: 600;
@@ -223,35 +304,6 @@ body::before {
   padding: 0 8px;
   margin-bottom: 4px;
 }
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-  border-radius: var(--radius);
-  cursor: pointer;
-  color: var(--text2);
-  font-size: 13px;
-  font-weight: 500;
-  transition: all 0.15s;
-  border: 1px solid transparent;
-  text-decoration: none;
-}
-
-.nav-item:hover {
-  background: var(--bg3);
-  color: var(--text);
-  border-color: var(--border);
-}
-
-.nav-item.active {
-  background: var(--green-glow);
-  color: var(--green);
-  border-color: rgba(63,185,80,0.3);
-}
-
-.nav-item .icon { font-size: 15px; width: 18px; text-align: center; }
 
 .nav-divider {
   height: 1px;
@@ -298,53 +350,33 @@ body::before {
 
 /* ── Main Content ── */
 .main {
-  overflow-y: auto;
+  flex: 1;
   padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
   min-width: 0;
+  max-width: 1400px;
+  width: 100%;
+  align-self: center;
 }
 
 /* ── Pages ── */
 .page { display: none; }
-.page.active { display: flex; flex-direction: column; gap: 24px; }
+.page.active { display: flex; flex-direction: column; gap: 20px; }
 
 /* ═══════════════════════════════════════════════════════════════════
    RESPONSIVE — TABLET & MOBILE
 ═══════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  .layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: 56px 1fr;
-  }
-
+  .navbar { display: none; }
   .hamburger { display: flex; }
-
   .uptime-badge { display: none; }
+  .sidebar { display: flex; }
 
-  .sidebar {
-    position: fixed;
-    top: 56px;
-    left: 0;
-    width: 260px;
-    height: calc(100vh - 56px);
-    transform: translateX(-100%);
-    box-shadow: 4px 0 24px rgba(0,0,0,0.5);
-  }
+  .main { padding: 14px; gap: 14px; }
 
-  .sidebar.open { transform: translateX(0); }
-
-  .main {
-    padding: 16px;
-    gap: 16px;
-    grid-column: 1;
-  }
-
-  .stat-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .stat-value { font-size: 24px; }
 
   .detection-item {
@@ -352,41 +384,27 @@ body::before {
     gap: 8px;
     padding: 10px 12px;
   }
-
-  /* Hide confidence bar on small screens, keep % */
-  .confidence-bar {
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
-  }
+  .confidence-bar { flex-direction: column; align-items: flex-end; gap: 2px; }
   .conf-track { display: none; }
-
   .det-avatar { width: 40px; height: 40px; }
-
   .section-title { font-size: 18px; }
-
   .card-body { padding: 12px; }
-
   .settings-grid { grid-template-columns: 1fr !important; }
-  .grid-live { grid-template-columns: 1fr; }
-  .grid-two-col { grid-template-columns: 1fr; }
+  .grid-live { grid-template-columns: 1fr !important; }
+  .grid-two-col { grid-template-columns: 1fr !important; }
 }
 
 @media (max-width: 480px) {
   .topbar { padding: 0 12px; gap: 10px; }
   .logo-text { font-size: 16px; }
   .status-pill { font-size: 11px; padding: 3px 8px; }
-  .main { padding: 12px; gap: 12px; }
+  .main { padding: 10px; gap: 10px; }
   .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .stat-card { padding: 12px; }
   .stat-value { font-size: 20px; }
   .detection-item { grid-template-columns: 36px 1fr auto; gap: 8px; padding: 8px 10px; }
   .play-btn { display: none; }
 }
-
-/* ═══════════════════════════════════════════════════════════════════
-   COMPONENTS
-═══════════════════════════════════════════════════════════════════ */
 
 /* Section header */
 .section-header {
@@ -1006,10 +1024,51 @@ body::before {
     </div>
   </header>
 
+  <!-- ── Desktop navbar ── -->
+  <nav class="navbar" id="desktop-nav">
+    <div class="nav-group">
+      <span class="nav-group-label">Monitor</span>
+      <a class="nav-item active" data-page="live" onclick="showPage('live',this)">
+        <span class="icon">📡</span> Live Feed
+      </a>
+      <a class="nav-item" data-page="history" onclick="showPage('history',this)">
+        <span class="icon">🗂</span> History
+      </a>
+      <a class="nav-item" data-page="species" onclick="showPage('species',this)">
+        <span class="icon">🦜</span> Species
+      </a>
+    </div>
+    <div class="nav-sep"></div>
+    <div class="nav-group">
+      <span class="nav-group-label">Analytics</span>
+      <a class="nav-item" data-page="charts" onclick="showPage('charts',this)">
+        <span class="icon">📊</span> Charts
+      </a>
+    </div>
+    <div class="nav-sep"></div>
+    <div class="nav-group">
+      <span class="nav-group-label">System</span>
+      <a class="nav-item nav-protected" data-page="settings" onclick="showPage('settings',this)">
+        <span class="icon">⚙️</span> Settings
+      </a>
+      <a class="nav-item nav-protected" data-page="logs" onclick="showPage('logs',this)">
+        <span class="icon">📋</span> Logs
+      </a>
+    </div>
+    <div class="navbar-right">
+      <button class="control-btn btn-start" id="ctrl-btn" onclick="toggleRecording()" style="width:auto;padding:5px 14px">
+        ▶ Start
+      </button>
+      <button class="btn btn-ghost" id="auth-btn" onclick="handleAuthBtn()" style="font-size:12px;padding:5px 10px">
+        🔒 Inloggen
+      </button>
+    </div>
+  </nav>
+
   <!-- Sidebar overlay voor mobiel -->
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 
-  <!-- ── Sidebar ── -->
+  <!-- ── Sidebar drawer (mobiel only) ── -->
   <nav class="sidebar" id="sidebar">
     <div class="nav-section">
       <div class="nav-label">Monitor</div>
@@ -1041,14 +1100,13 @@ body::before {
       </a>
     </div>
     <div class="sidebar-footer">
-      <button class="control-btn btn-start" id="ctrl-btn" onclick="toggleRecording()">
+      <button class="control-btn btn-start" id="ctrl-btn-mobile" onclick="toggleRecording()">
         ▶ Start Recording
       </button>
-      <button class="btn btn-ghost" id="auth-btn" onclick="handleAuthBtn()"
+      <button class="btn btn-ghost" id="auth-btn-mobile" onclick="handleAuthBtn()"
         style="margin-top:8px;width:100%;font-size:12px">
         🔒 Inloggen
       </button>
-    </div>
     </div>
   </nav>
 
@@ -1509,13 +1567,15 @@ async function checkAuthStatus() {
 }
 
 function updateAuthUI() {
-  const btn = document.getElementById("auth-btn");
+  const btns = [document.getElementById("auth-btn"), document.getElementById("auth-btn-mobile")];
   const protectedItems = document.querySelectorAll(".nav-protected");
+  btns.forEach(btn => {
+    if (!btn) return;
+    btn.textContent = _isAuthenticated ? "🔓 Uitloggen" : "🔒 Inloggen";
+  });
   if (_isAuthenticated) {
-    btn.textContent = "🔓 Uitloggen";
     protectedItems.forEach(el => el.classList.remove("nav-locked"));
   } else {
-    btn.textContent = "🔒 Inloggen";
     protectedItems.forEach(el => el.classList.add("nav-locked"));
   }
 }
@@ -1587,7 +1647,8 @@ function showPage(name, el) {
   document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
   document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
   document.getElementById("page-" + name).classList.add("active");
-  if (el) el.classList.add("active");
+  // Markeer actief in beide navs (desktop + mobiel)
+  document.querySelectorAll(`.nav-item[data-page="${name}"]`).forEach(n => n.classList.add("active"));
 
   // Sluit sidebar op mobiel na navigatie
   if (window.innerWidth <= 768) closeSidebar();
@@ -1605,18 +1666,16 @@ function setRunning(running) {
   isRunning = running;
   const dot = document.getElementById("status-dot");
   const text = document.getElementById("status-text");
-  const btn = document.getElementById("ctrl-btn");
+  const btns = [document.getElementById("ctrl-btn"), document.getElementById("ctrl-btn-mobile")];
 
   if (running) {
     dot.classList.add("active");
     text.textContent = "Recording";
-    btn.className = "control-btn btn-stop";
-    btn.textContent = "⏹ Stop Recording";
+    btns.forEach(btn => { if (btn) { btn.className = "control-btn btn-stop"; btn.textContent = "⏹ Stop"; }});
   } else {
     dot.classList.remove("active");
     text.textContent = "Stopped";
-    btn.className = "control-btn btn-start";
-    btn.textContent = "▶ Start Recording";
+    btns.forEach(btn => { if (btn) { btn.className = "control-btn btn-start"; btn.textContent = "▶ Start Recording"; }});
   }
 }
 
