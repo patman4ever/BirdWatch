@@ -1004,6 +1004,106 @@ body.authenticated .auth-only.grid-live { display: grid !important; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+/* ── Heatmap ── */
+.heatmap-wrap {
+  display: flex;
+  gap: 0;
+}
+
+.heatmap-labels {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border2);
+}
+
+.heatmap-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 10px 0 12px;
+  height: 28px;
+  font-size: 12px;
+  color: var(--text2);
+  white-space: nowrap;
+  gap: 10px;
+  border-bottom: 1px solid var(--border2);
+}
+
+.heatmap-label-row:last-child { border-bottom: none; }
+
+.heatmap-total {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--green2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  min-width: 32px;
+  text-align: center;
+}
+
+.heatmap-grid {
+  flex: 1;
+  overflow-x: auto;
+}
+
+.heatmap-hours-header {
+  display: flex;
+  border-bottom: 1px solid var(--border2);
+  position: sticky;
+  top: 0;
+  background: var(--bg2);
+  z-index: 2;
+}
+
+.heatmap-hour-th {
+  width: 32px;
+  min-width: 32px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text3);
+  border-right: 1px solid var(--border2);
+  flex-shrink: 0;
+}
+
+.heatmap-row {
+  display: flex;
+  border-bottom: 1px solid var(--border2);
+}
+
+.heatmap-row:last-child { border-bottom: none; }
+
+.heatmap-cell {
+  width: 32px;
+  min-width: 32px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  border-right: 1px solid var(--border2);
+  flex-shrink: 0;
+  cursor: default;
+  transition: filter 0.1s;
+  color: transparent;
+}
+
+.heatmap-cell:hover {
+  filter: brightness(1.3);
+  color: rgba(255,255,255,0.9) !important;
+  z-index: 1;
+}
+
+.heatmap-cell.has-data { color: rgba(255,255,255,0.85); }
 /* ── Login modal ─────────────────────────────────────────────── */
 .login-overlay {
   display: none;
@@ -1394,6 +1494,31 @@ body.authenticated .auth-only.grid-live { display: grid !important; }
         <div class="card-body">
           <div class="chart-container" style="height:280px">
             <canvas id="chart-species"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Heatmap -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🔥 Soorten × Uur Heatmap</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <select class="filter-select" id="heatmap-days" onchange="loadHeatmap()" style="font-size:12px;padding:4px 8px">
+              <option value="1">Vandaag</option>
+              <option value="7" selected>7 dagen</option>
+              <option value="30">30 dagen</option>
+              <option value="90">90 dagen</option>
+            </select>
+            <select class="filter-select" id="heatmap-limit" onchange="loadHeatmap()" style="font-size:12px;padding:4px 8px">
+              <option value="15">Top 15</option>
+              <option value="30" selected>Top 30</option>
+              <option value="50">Top 50</option>
+            </select>
+          </div>
+        </div>
+        <div class="card-body" style="padding:0;overflow-x:auto">
+          <div id="heatmap-container" style="min-width:600px">
+            <div class="empty-state"><p>Laden...</p></div>
           </div>
         </div>
       </div>
@@ -2037,6 +2162,7 @@ async function loadCharts() {
     fetch("/api/stats/hourly?days=7").then(r=>r.json()),
     fetch("/api/species/top?days=30&limit=10").then(r=>r.json()),
   ]);
+  loadHeatmap();
 
   const chartDefaults = {
     responsive: true, maintainAspectRatio: false,
@@ -2269,6 +2395,88 @@ function stopLiveAudio() {
   btn.style.borderColor = "";
   btn.style.color = "";
   status.textContent = "";
+}
+
+// ── Heatmap ───────────────────────────────────────────────────────
+async function loadHeatmap() {
+  const days  = document.getElementById("heatmap-days")?.value  || 7;
+  const limit = document.getElementById("heatmap-limit")?.value || 30;
+  const container = document.getElementById("heatmap-container");
+  container.innerHTML = '<div class="empty-state"><p>Laden...</p></div>';
+
+  const res = await fetch(`/api/stats/heatmap?days=${days}&limit=${limit}`);
+  const data = await res.json();
+
+  if (!data.species || data.species.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">🦜</div><p>Geen data voor deze periode</p></div>';
+    return;
+  }
+
+  // Max waarde voor kleurschaal
+  const allCounts = [];
+  data.species.forEach(s => {
+    for (let h = 0; h < 24; h++) {
+      const c = data.data[s.name]?.[String(h)] || 0;
+      if (c > 0) allCounts.push(c);
+    }
+  });
+  const maxVal = Math.max(...allCounts, 1);
+
+  function cellColor(count) {
+    if (!count) return "transparent";
+    // Van lichtgroen naar donkergroen, zelfde palette als de bijlage
+    const intensity = Math.pow(count / maxVal, 0.5); // wortel voor betere spreiding
+    const r = Math.round(13  + (56  - 13)  * (1 - intensity));
+    const g = Math.round(17  + (185 - 17)  * intensity);
+    const b = Math.round(23  + (80  - 23)  * (1 - intensity));
+    // Licht = rgba(144,238,144), donker = #238636
+    const light = [188, 240, 196];
+    const dark  = [35,  134,  54];
+    const ri = Math.round(light[0] + (dark[0] - light[0]) * intensity);
+    const gi = Math.round(light[1] + (dark[1] - light[1]) * intensity);
+    const bi = Math.round(light[2] + (dark[2] - light[2]) * intensity);
+    return `rgb(${ri},${gi},${bi})`;
+  }
+
+  // Header rij met uur labels
+  let hoursHtml = '<div class="heatmap-hour-th" style="color:var(--text3);font-size:9px">uur→</div>';
+  for (let h = 0; h < 24; h++) {
+    hoursHtml += `<div class="heatmap-hour-th">${String(h).padStart(2,'0')}</div>`;
+  }
+
+  // Rijen per soort
+  let rowsHtml = '';
+  data.species.forEach(s => {
+    let cellsHtml = '';
+    for (let h = 0; h < 24; h++) {
+      const count = data.data[s.name]?.[String(h)] || 0;
+      const bg = cellColor(count);
+      const hasData = count > 0 ? ' has-data' : '';
+      const title = count > 0 ? `${s.name} — ${String(h).padStart(2,'0')}:00 — ${count}×` : '';
+      cellsHtml += `<div class="heatmap-cell${hasData}"
+        style="background:${bg}"
+        title="${title}">${count > 0 ? count : ''}</div>`;
+    }
+    rowsHtml += `<div class="heatmap-row">${cellsHtml}</div>`;
+  });
+
+  // Labels links
+  let labelsHtml = '<div class="heatmap-label-row" style="height:28px;border-bottom:1px solid var(--border2)"></div>';
+  data.species.forEach(s => {
+    labelsHtml += `<div class="heatmap-label-row">
+      <span style="overflow:hidden;text-overflow:ellipsis;max-width:180px" title="${s.name}">${s.name}</span>
+      <span class="heatmap-total">${s.total}</span>
+    </div>`;
+  });
+
+  container.innerHTML = `
+    <div class="heatmap-wrap">
+      <div class="heatmap-labels">${labelsHtml}</div>
+      <div class="heatmap-grid">
+        <div class="heatmap-hours-header">${hoursHtml}</div>
+        ${rowsHtml}
+      </div>
+    </div>`;
 }
 
 // ── Database opschonen & CSV export ───────────────────────────────
