@@ -647,7 +647,9 @@ body::before {
 /* Toon auth-only elementen wanneer ingelogd */
 body.authenticated .delete-btn { display: flex; }
 .auth-only { display: none !important; }
-body.authenticated .auth-only { display: flex !important; }
+body.authenticated .auth-only { display: revert !important; }
+body.authenticated .auth-only.grid-two-col { display: grid !important; }
+body.authenticated .auth-only.grid-live { display: grid !important; }
 
 /* Live indicator */
 .live-badge {
@@ -1255,6 +1257,66 @@ body.authenticated .auth-only { display: flex !important; }
           </table>
         </div>
         <div class="pagination" id="history-pagination"></div>
+      </div>
+
+      <!-- Opschonen + Backup — alleen zichtbaar na inloggen -->
+      <div class="grid-two-col auth-only" id="history-admin-tools">
+
+        <!-- Opschonen -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🗑 Database opschonen</span>
+          </div>
+          <div class="card-body">
+            <p style="font-size:12px;color:var(--text2);margin-bottom:14px">
+              Verwijder alle detecties én audiobestanden <strong>vóór</strong> de gekozen datum.
+              Dit kan niet ongedaan worden gemaakt.
+            </p>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div class="form-group">
+                <label class="form-label">Verwijder alles vóór</label>
+                <input type="date" class="form-input" id="cleanup-date">
+              </div>
+              <div id="cleanup-preview" style="font-size:12px;color:var(--text3);min-height:18px"></div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-ghost" onclick="previewCleanup()"
+                  style="flex:1">🔍 Hoeveel records?</button>
+                <button class="btn" onclick="runCleanup()"
+                  style="flex:1;background:rgba(248,81,73,0.15);color:var(--red);border:1px solid rgba(248,81,73,0.3)">
+                  🗑 Verwijderen
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Backup / export -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">📥 Backup naar CSV</span>
+          </div>
+          <div class="card-body">
+            <p style="font-size:12px;color:var(--text2);margin-bottom:14px">
+              Download een CSV-bestand met alle detecties tussen twee datums.
+              Laat leeg voor een volledige export.
+            </p>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div class="form-group">
+                <label class="form-label">Van datum</label>
+                <input type="date" class="form-input" id="export-from">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tot datum</label>
+                <input type="date" class="form-input" id="export-to">
+              </div>
+              <button class="btn btn-primary" onclick="downloadCsv()"
+                style="width:100%;margin-top:2px">
+                📥 Download CSV
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -2207,6 +2269,63 @@ function stopLiveAudio() {
   btn.style.borderColor = "";
   btn.style.color = "";
   status.textContent = "";
+}
+
+// ── Database opschonen & CSV export ───────────────────────────────
+async function previewCleanup() {
+  const date = document.getElementById("cleanup-date").value;
+  const preview = document.getElementById("cleanup-preview");
+  if (!date) { preview.innerHTML = '<span style="color:var(--amber)">⚠ Kies eerst een datum</span>'; return; }
+  preview.innerHTML = '⏳ Tellen...';
+  try {
+    const params = new URLSearchParams({ limit: 1, offset: 0, min_confidence: 0, date_to: date });
+    // date_to is exclusief in filter, we willen alles < date dus date - 1 dag
+    const d = new Date(date);
+    d.setDate(d.getDate() - 1);
+    const dayBefore = d.toISOString().split("T")[0];
+    const res = await fetch(`/api/detections?limit=1&offset=0&min_confidence=0&date_to=${dayBefore}`);
+    const data = await res.json();
+    const n = data.total || 0;
+    if (n === 0) {
+      preview.innerHTML = '<span style="color:var(--text3)">Geen detecties gevonden vóór deze datum</span>';
+    } else {
+      preview.innerHTML = `<span style="color:var(--amber)">⚠ ${n} detecties worden verwijderd</span>`;
+    }
+  } catch(e) {
+    preview.innerHTML = '<span style="color:var(--red)">Fout bij ophalen</span>';
+  }
+}
+
+async function runCleanup() {
+  const date = document.getElementById("cleanup-date").value;
+  if (!date) { showBanner("Kies eerst een datum", "error"); return; }
+  if (!confirm(`Alle detecties én audiobestanden vóór ${date} permanent verwijderen?\n\nDit kan NIET ongedaan worden gemaakt.`)) return;
+  try {
+    const res = await fetch("/api/detections/bulk-delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ before_date: date }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showBanner(`${data.deleted} detecties verwijderd (${data.audio_deleted} audiobestanden)`, "success");
+      document.getElementById("cleanup-preview").textContent = "";
+      loadHistory();
+    } else {
+      showBanner(data.error || "Verwijderen mislukt", "error");
+    }
+  } catch(e) {
+    showBanner("Verbindingsfout", "error");
+  }
+}
+
+function downloadCsv() {
+  const from = document.getElementById("export-from").value;
+  const to   = document.getElementById("export-to").value;
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to)   params.set("to", to);
+  window.location.href = `/api/detections/export-csv?${params}`;
 }
 
 // ── BirdWeather ────────────────────────────────────────────────────
