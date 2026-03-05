@@ -97,6 +97,26 @@ def api_status():
     })
 
 
+@app.route("/api/detections/<int:detection_id>", methods=["DELETE"])
+def api_delete_detection(detection_id):
+    err = require_auth()
+    if err: return err
+    detection = db.get_detection_by_id(detection_id)
+    if not detection:
+        return jsonify({"success": False, "error": "Niet gevonden"}), 404
+    # Verwijder ook het audiobestand als het bestaat
+    audio_file = detection.get("audio_file")
+    if audio_file:
+        audio_path = os.path.join("recordings", audio_file)
+        try:
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+        except Exception as e:
+            log.warning(f"Kon audiobestand niet verwijderen: {e}")
+    deleted = db.delete_detection(detection_id)
+    return jsonify({"success": deleted})
+
+
 @app.route("/api/detections")
 def api_detections():
     limit = int(request.args.get("limit", 50))

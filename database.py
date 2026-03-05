@@ -178,6 +178,13 @@ def get_detection_by_id(detection_id: int) -> dict:
     return dict(row) if row else None
 
 
+def delete_detection(detection_id: int) -> bool:
+    """Verwijder een detectie uit de database. Geeft True terug als succesvol."""
+    with get_conn() as conn:
+        cursor = conn.execute("DELETE FROM detections WHERE id = ?", (detection_id,))
+    return cursor.rowcount > 0
+
+
 def get_top_species(days=7, limit=10) -> list:
     since = (datetime.now() - timedelta(days=days)).isoformat()
     with get_conn() as conn:
